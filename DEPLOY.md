@@ -104,6 +104,18 @@ Live in about thirty seconds. Two things to remember:
   that's usually the same day. To force it: three taps on the version stamp in the
   footer clears every cache and hard-reloads.
 
+### ⚠️ Changing the icon is different
+
+Everything else updates on her next cold launch. The icon does not. **iOS
+snapshots the home-screen icon when the app is added and never re-reads it** —
+no redeploy, cache header or version bump will change it.
+
+To pick up a new icon, the shortcut has to be deleted and re-added from Safari.
+That also clears the app's storage, so any autosaved captions go with it.
+
+Practical consequence: **settle the icon before she installs it.** Changing it
+afterwards means asking her to delete and re-add the app.
+
 ### Testing a risky change without touching her copy
 
 ```bash

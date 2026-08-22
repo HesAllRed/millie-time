@@ -23,8 +23,12 @@
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Icons were cached for a week, which meant an icon change took up to seven days
+# to show in the browser. They are small and fetched rarely, so revalidating
+# costs a 304. Note this does nothing for a shortcut already on a home screen:
+# iOS snapshots that icon at install time and never looks again.
 /icons/*
-  Cache-Control: public, max-age=604800
+  Cache-Control: no-cache
 
 /*
   X-Content-Type-Options: nosniff
