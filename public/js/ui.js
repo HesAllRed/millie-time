@@ -54,6 +54,16 @@ export function tilt(i, m, compact = false) {
 
 // NB: the size options are `width`/`height`, not `w`/`h` — destructuring `h`
 // here would shadow the element helper above and break every tile.
+/**
+ * The little invader. Two nested elements because the two motions have to
+ * compose: the wrapper breathes, the emoji inside dances. One element can only
+ * carry one `transform` animation, and the second would silently win.
+ */
+export function orb(breathing = false) {
+  return h("div", { class: `orb${breathing ? " pulse" : ""}`, "aria-hidden": "true" },
+    h("span", { text: "👾" }));
+}
+
 export function tile(item, { width, height, onTap, selected } = {}) {
   const el = h("button", {
     type: "button",
@@ -63,6 +73,8 @@ export function tile(item, { width, height, onTap, selected } = {}) {
   });
   if (width) { el.style.width = `${width}px`; el.style.height = `${height}px`; }
   if (item.url) el.style.backgroundImage = `url("${item.url}")`;
+  // A video whose first frame never decoded should look deliberate, not broken.
+  else if (item.kind === "video") el.classList.add("noposter");
   if (onTap) el.addEventListener("click", (e) => onTap(item, el, e));
   return el;
 }

@@ -8,7 +8,7 @@
 // If this ever ships broken: a standalone PWA has no reload button, so three
 // taps on the version stamp in the footer clears every cache and hard-reloads.
 
-const CACHE_VERSION = "millie-v1.0.2";
+const CACHE_VERSION = "millie-v1.0.3";
 
 const SHELL = [
   "./",

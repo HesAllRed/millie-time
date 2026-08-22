@@ -2,7 +2,7 @@
 // and the share orchestration.
 
 import cfg from "./config.js";
-import { h, clear } from "./ui.js";
+import { h, clear, orb } from "./ui.js";
 import {
   state, set, subscribe, days, refreshWindow,
   loadCaptions, saveCaptions, clearAll,
@@ -194,7 +194,7 @@ function renderBusy(root) {
   const { done, total } = state.busy;
   root.append(
     h("div", { class: "spacer" }),
-    h("div", { class: "orb pulse" }),
+    orb(true),
     h("p", { class: "warmline centred", text: `iOS is getting your ${total} ${total === 1 ? "item" : "items"} ready…` }),
     h("p", { class: "helper", text: `${done} of ${total}` }),
     h("div", { class: "spacer" })

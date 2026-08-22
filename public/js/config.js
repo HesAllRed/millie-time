@@ -24,15 +24,11 @@ export default {
   weekLength: 8,
   weekEndsOn: "newestPhoto",
 
-  // Warn her above this total payload. Tune from real device testing —
-  // see PLAN.md §6.4 test 2.
-  warnBytes: 55 * 1024 * 1024,
-
   // Renumber files as 01, 02, … before sharing, so targets that sort
   // attachments by name get the week in order. Set false if it ever looks
   // like it's costing memory on a heavy week.
   renumberOnShare: true,
 
   // Bumped on release; shown in the footer and on #debug.
-  version: "1.0.2",
+  version: "1.0.3",
 };

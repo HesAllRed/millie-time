@@ -7,7 +7,7 @@ import { h, clear, crescent, tile } from "../ui.js";
 import { state, set, days, deckDays, saveCaptions } from "../state.js";
 import { dayLabel, rangeLabel } from "../dates.js";
 import { totalBytes, formatBytes, itemsForDay } from "../compose.js";
-import { playVideo, stopVideo, playingId } from "../media.js";
+import { playVideo, stopVideo } from "../media.js";
 
 let gridDay = null;      // ISO day whose full grid is open, or null
 let gridPick = null;     // item id selected inside that grid
@@ -20,23 +20,27 @@ function dayCard(iso, onShare) {
 
   const card = h("section", { class: "card", "data-day": iso });
 
+  const openGrid = () => { gridDay = iso; gridPick = null; set({}); };
+
   card.append(h("div", { class: "cres-wrap" },
     mine.length
       ? crescent(mine, {
           onTapTile: (item, el) => {
-            if (item.kind === "video") {
-              playVideo(item, el);
-              set({ playingId: playingId() });
-            } else {
-              gridDay = iso; gridPick = null; set({});
-            }
+            // Deliberately no set() here. Re-rendering would throw away the
+            // very tile we just put the <video> into, which is why tapping a
+            // video appeared to do nothing at all.
+            if (item.kind === "video") playVideo(item, el);
+            else openGrid();
           },
-          onTapMore: () => { gridDay = iso; gridPick = null; set({}); },
+          onTapMore: openGrid,
         })
       : h("p", { class: "nowt centred", text: "no photos on this day" })
   ));
 
-  card.append(h("div", { class: "dayline" },
+  // Tapping the date opens the day's grid. Without this, a day holding only
+  // videos had no route to the move/remove controls, because every tap there
+  // is a play/stop.
+  card.append(h("button", { class: "dayline", type: "button", onclick: openGrid },
     h("span", { text: label.dm }),
     h("b", { text: label.weekday })
   ));
@@ -112,12 +116,6 @@ function fillSend(card, onShare) {
   card.append(h("div", { class: "print-scroll" }, paper));
 
   card.append(h("div", { class: "spacer" }));
-
-  if (bytes > cfg.warnBytes) {
-    card.append(h("div", { class: "notice" },
-      h("h4", { text: "That's a big send" }),
-      h("p", { text: "Large payloads can stall on cellular. Splitting the heaviest day out would help." })));
-  }
 
   card.append(h("button", {
     class: "btn", type: "button",

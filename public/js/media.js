@@ -24,32 +24,47 @@ function capturePoster(file) {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const v = document.createElement("video");
+
+    // iOS will not decode a frame for a <video> that is not in the document.
+    // Building one detached and drawing from it gives a blank canvas every
+    // time — which is why video tiles came back grey. Park it offscreen but
+    // attached instead.
+    v.style.cssText =
+      "position:fixed;left:-10000px;top:0;width:2px;height:2px;opacity:.01;pointer-events:none";
+
+    // Attributes as well as properties: the autoplay policy reads the markup,
+    // and without playsinline iOS takes the video fullscreen.
+    v.setAttribute("muted", "");
+    v.setAttribute("playsinline", "");
+    v.setAttribute("webkit-playsinline", "");
+    v.setAttribute("preload", "metadata");   // "auto" pulls the whole file — slow
     v.muted = true;
+    v.defaultMuted = true;
     v.playsInline = true;
-    v.preload = "auto";
-    v.src = url;
+    document.body.appendChild(v);
 
     let settled = false;
+    let nudged = false;
+
     const finish = (poster) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(nudgeTimer);
+      try { v.pause(); } catch {}
       v.removeAttribute("src");
       try { v.load(); } catch {}
+      v.remove();
       URL.revokeObjectURL(url);
       resolve(poster);
     };
-    const timer = setTimeout(() => finish(null), 8000);
 
-    v.addEventListener("loadeddata", () => {
-      try { v.currentTime = Math.min(0.1, (v.duration || 1) / 2); } catch { finish(null); }
-    });
-
-    v.addEventListener("seeked", () => {
+    const draw = () => {
+      if (settled) return;
+      if (!v.videoWidth) { nudge(); return; }        // nothing decoded yet
       try {
-        const ratio = v.videoWidth ? v.videoHeight / v.videoWidth : 1.25;
         const w = 360;
-        const h = Math.max(1, Math.round(w * ratio));
+        const h = Math.max(1, Math.round(w * (v.videoHeight / v.videoWidth)));
         const c = document.createElement("canvas");
         c.width = w;
         c.height = h;
@@ -58,9 +73,29 @@ function capturePoster(file) {
       } catch {
         finish(null);
       }
-    });
+    };
 
+    // Some iOS builds paint nothing from a seek alone. A brief muted play is
+    // the reliable way to force a frame out of the decoder.
+    const nudge = () => {
+      if (nudged || settled) return;
+      nudged = true;
+      const onTick = () => { v.removeEventListener("timeupdate", onTick); try { v.pause(); } catch {} draw(); };
+      v.addEventListener("timeupdate", onTick);
+      const started = v.play();
+      if (started && started.catch) started.catch(() => finish(null));
+    };
+
+    const timer = setTimeout(() => finish(null), 5000);
+    const nudgeTimer = setTimeout(nudge, 1200);
+
+    v.addEventListener("loadedmetadata", () => {
+      try { v.currentTime = Math.min(0.1, (v.duration || 1) / 2); } catch { nudge(); }
+    });
+    v.addEventListener("seeked", draw);
     v.addEventListener("error", () => finish(null));
+
+    v.src = url;
   });
 }
 

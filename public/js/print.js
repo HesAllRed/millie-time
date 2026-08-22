@@ -5,8 +5,8 @@
 // the payload, which means the words arrive even on the files-only rung.
 //
 // It is warm paper rather than the app's dark, because it isn't app chrome —
-// it's the thing that comes out of the darkroom, and it reads far better than a
-// dark card in a bright Messages thread.
+// it's the object she is actually sending, and it reads far better than a dark
+// card would in a bright Messages thread.
 
 import { dayLabel, rangeLabel } from "./dates.js";
 
@@ -14,7 +14,7 @@ const W        = 1080;
 const PAD      = 72;
 const PAPER    = "#F2EBE2";
 const INK      = "#17161A";
-const ACCENT   = "#A0472A";
+const ACCENT   = "#5F52A8";
 const HAIRLINE = "rgba(23,22,26,0.16)";
 
 const UI    = '800 %spx "Bricolage Grotesque", system-ui, "Apple Color Emoji", sans-serif';

@@ -1,7 +1,7 @@
 // Screens 09–11 — the two-step fallback, the sent state, and plan B.
 
 import cfg from "../config.js";
-import { h, clear } from "../ui.js";
+import { h, clear, orb } from "../ui.js";
 import { state, set } from "../state.js";
 import { totalBytes, formatBytes } from "../compose.js";
 
@@ -63,7 +63,7 @@ export function renderSent(root, { onNew }) {
   clear(root);
   root.append(
     h("div", { class: "spacer" }),
-    h("div", { class: "orb" }),
+    orb(),
     h("div", { class: "range centred", style: "font-size:38px;margin-top:26px", text: "SENT" }),
     h("p", { class: `penline centred font-${cfg.taglineFont}`, text: cfg.sentWord }),
     h("div", { class: "spacer" }),

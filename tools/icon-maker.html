@@ -12,10 +12,10 @@
   .cell{ text-align:center; }
   canvas{ border-radius:18px; display:block; background:#151027; }
   .cell span{ display:block; font-family:ui-monospace,monospace; font-size:11px; color:#6E6A69; margin-top:8px; letter-spacing:.1em; }
-  button{ margin-top:28px; background:#F2A03D; color:#17110A; border:2px solid #F0E7E1; box-shadow:5px 5px 0 #F0E7E1;
+  button{ margin-top:28px; background:#D3D3FF; color:#141024; border:2px solid #F0E7E1; box-shadow:5px 5px 0 #F0E7E1;
           font-family:"Bricolage Grotesque",sans-serif; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
           font-size:16px; padding:15px 26px; border-radius:3px; cursor:pointer; }
-  code{ font-family:ui-monospace,monospace; color:#F2A03D; }
+  code{ font-family:ui-monospace,monospace; color:#D3D3FF; }
 </style>
 </head>
 <body>
@@ -76,14 +76,14 @@ function draw(ctx, size, inset = 0) {
   // memphis furniture, kept out of the wordmark's band
   squiggle(6, 17, "#4FC3D9");
   squiggle(58, 86, "#E0479E");
-  tri(72, 9, 14, 11, "#F2A03D");
+  tri(72, 9, 14, 11, "#D3D3FF");
   tri(11, 82, 12, 10, "#4FC3D9");
-  dot(86, 38, 3.2, "#F2A03D");
+  dot(86, 38, 3.2, "#D3D3FF");
   dot(8, 46, 2.8, "#E0479E");
   diamond(48, 14, 6, "#4FC3D9");
   diamond(84, 68, 5, "#E0479E");
-  line(28, 88, 39, 88, "#F2A03D", 3);
-  line(6, 79, 14, 79, "#F2A03D", 2.6);
+  line(28, 88, 39, 88, "#D3D3FF", 3);
+  line(6, 79, 14, 79, "#D3D3FF", 2.6);
 
   // the wordmark
   ctx.textAlign = "center";
@@ -91,7 +91,7 @@ function draw(ctx, size, inset = 0) {
   ctx.font = `800 ${px(24)}px "Bricolage Grotesque", sans-serif`;
   ctx.fillStyle = "#F0E7E1";
   ctx.fillText("millie", px(47), px(46));
-  ctx.fillStyle = "#F2A03D";
+  ctx.fillStyle = "#D3D3FF";
   ctx.fillText("time", px(47), px(69));
 
   ctx.restore();
