@@ -1,15 +1,6 @@
 # Millie Time
 
-A weekly photo recap, built as an installable PWA for one person's iPhone.
-
-She picks the week's photos, writes a line or two about each day with the photos
-in front of her, and hands the whole thing to the iOS share sheet in one tap.
-No accounts, no history, no backend — each week is a fresh session.
-
-- **[PLAN.md](PLAN.md)** — the full design and its reasoning, including every
-  iOS constraint that shaped it
-- **[DEPLOY.md](DEPLOY.md)** — GitHub → Cloudflare Pages, and how to push updates
-- **[design/mockup.html](design/mockup.html)** — the signed-off visual direction
+Millie's weekly photo recap!
 
 ## Running it
 
@@ -22,13 +13,6 @@ Then <http://localhost:5173>. Add `#debug` for the on-device diagnostics screen.
 ```bash
 npm test
 ```
-
-25 tests over the pure modules — dates, EXIF parsing, message composition. No
-dependencies; `node --test` is built in.
-
-**What you cannot test on a desktop:** the share sheet, the iOS keyboard, EXIF
-from the real photo picker, HEIC conversion, video decoding limits. All of it
-needs a deploy and a real iPhone — see `PLAN.md` §6.
 
 ## Layout
 
@@ -47,18 +31,3 @@ public/                    ← everything Cloudflare serves
 test/                      node:test
 tools/                     dev server, icon generator
 ```
-
-No build step and no dependencies, on purpose. It's a gift, not a product — in
-two years you should be able to fix a typo by editing a file and pushing, without
-an `npm install` that fails against a dependency graph that moved on.
-
-## The three things that decide whether it works
-
-1. **The keyboard.** The crescent of photos has to stay visible while she types,
-   which means `visualViewport` — `100vh` ignores the iOS keyboard entirely.
-2. **The share.** iOS drops the `text` field when files are attached, so the
-   captions are rendered into an image that rides along as file #1. See the ladder
-   in `js/share.js`.
-3. **Capture dates.** Safari rewrites `File.lastModified` to the export time, so
-   dates come from EXIF. It's best-effort; anything undated lands in a tray for
-   her to place by hand, never on a wrong day.
