@@ -19,6 +19,7 @@ export const state = {
   busy: null,              // null | { label }
   playingId: null,         // at most one video is ever live
   shareStep: null,         // null | "words" | "photos"
+  sharedOnce: false,       // she can send the same week to several people
   lastError: null,
 };
 
@@ -97,6 +98,7 @@ export function clearAll() {
   state.deckIndex = 0;
   state.playingId = null;
   state.shareStep = null;
+  state.sharedOnce = false;
   state.autoWindow = cfg.weekEndsOn === "newestPhoto";
   state.endIso = isoDay(new Date());
   try { localStorage.removeItem(CAPTION_KEY); } catch {}

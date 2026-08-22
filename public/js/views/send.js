@@ -67,8 +67,7 @@ export function renderSent(root, { onNew }) {
     h("div", { class: "range centred", style: "font-size:38px;margin-top:26px", text: "SENT" }),
     h("p", { class: `penline centred font-${cfg.taglineFont}`, text: cfg.sentWord }),
     h("div", { class: "spacer" }),
-    h("button", { class: "btn ghost", type: "button", text: "Start a new week", onclick: onNew }),
-    h("p", { class: "helper", text: "Nothing is saved. That's on purpose." })
+    h("button", { class: "btn ghost", type: "button", text: "Start a new week", onclick: onNew })
   );
 }
 
@@ -88,7 +87,6 @@ export function renderFallback(root, { onRetry }) {
       h("h4", { text: "Then the photos" }),
       h("p", { text: "They're in your camera roll. Attach them from there." })),
     h("div", { class: "spacer" }),
-    h("button", { class: "btn ghost", type: "button", text: "Try again", onclick: onRetry }),
-    h("p", { class: "helper", text: "Nothing was lost." })
+    h("button", { class: "btn ghost", type: "button", text: "Try again", onclick: onRetry })
   );
 }

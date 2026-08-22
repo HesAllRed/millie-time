@@ -8,6 +8,7 @@ import cfg from "../config.js";
 import { h, clear, tile } from "../ui.js";
 import { state, set, days } from "../state.js";
 import { dayLabel } from "../dates.js";
+import { itemsForDay } from "../compose.js";
 import { stopVideo } from "../media.js";
 
 let selectedId = null;
@@ -42,7 +43,7 @@ export function renderSort(root, { onDone, onAddMore }) {
   }
 
   for (const iso of window) {
-    const mine = state.items.filter((i) => i.day === iso);
+    const mine = itemsForDay(state.items, iso);
     const label = dayLabel(iso);
     const row = h("div", { class: `dayrow${mine.length ? "" : " empty"}` },
       h("div", { class: "dayrow-h" },

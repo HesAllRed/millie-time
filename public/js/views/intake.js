@@ -40,9 +40,6 @@ export function renderIntake(root, { onPick }) {
     h("p", { class: `penline font-${cfg.taglineFont}`, text: tagline() }),
     h("div", { class: "spacer" }),
     h("button", { class: "btn", type: "button", onclick: onPick, text: "Pick photos" }),
-    h("p", { class: "helper" },
-      "Newest are at the top of your roll.", h("br"),
-      "You can come back and add more."),
   );
 }
 

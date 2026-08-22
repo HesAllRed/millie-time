@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { composeText, activeDays, totalBytes, formatBytes } from "../public/js/compose.js";
+import {
+  composeText, activeDays, totalBytes, formatBytes, itemsForDay, orderedItems,
+} from "../public/js/compose.js";
+import { renameForOrder } from "../public/js/media.js";
 import { windowDays } from "../public/js/dates.js";
 
 const cfg = { printTitle: "This week", name: "Millie Time" };
@@ -47,6 +50,59 @@ test("activeDays includes days with photos or with captions, and nothing else", 
 
 test("activeDays ignores a caption that is only whitespace", () => {
   assert.deepEqual(activeDays(week, { "2026-08-19": "  " }, []), []);
+});
+
+const at = (iso, hh, mm = 0) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d, hh, mm);
+};
+
+test("itemsForDay returns one day's items oldest first", () => {
+  const items = [
+    { id: "c", day: "2026-08-16", takenAt: at("2026-08-16", 18) },
+    { id: "a", day: "2026-08-16", takenAt: at("2026-08-16", 8) },
+    { id: "x", day: "2026-08-17", takenAt: at("2026-08-17", 9) },
+    { id: "b", day: "2026-08-16", takenAt: at("2026-08-16", 12) },
+  ];
+  assert.deepEqual(itemsForDay(items, "2026-08-16").map((i) => i.id), ["a", "b", "c"]);
+});
+
+test("itemsForDay keeps pick order when capture times are missing", () => {
+  const items = [
+    { id: "first", day: "2026-08-16", takenAt: null },
+    { id: "second", day: "2026-08-16", takenAt: null },
+  ];
+  assert.deepEqual(itemsForDay(items, "2026-08-16").map((i) => i.id), ["first", "second"]);
+});
+
+test("orderedItems reads the week day by day, oldest first", () => {
+  const items = [
+    { id: "sat", day: "2026-08-15", takenAt: at("2026-08-15", 10) },
+    { id: "fri-late", day: "2026-08-14", takenAt: at("2026-08-14", 22) },
+    { id: "fri-early", day: "2026-08-14", takenAt: at("2026-08-14", 7) },
+  ];
+  assert.deepEqual(
+    orderedItems(items, week).map((i) => i.id),
+    ["fri-early", "fri-late", "sat"]
+  );
+});
+
+test("orderedItems puts undated items last rather than first", () => {
+  const items = [
+    { id: "nodate", day: null, takenAt: null },
+    { id: "dated", day: "2026-08-16", takenAt: at("2026-08-16", 9) },
+  ];
+  assert.deepEqual(orderedItems(items, week).map((i) => i.id), ["dated", "nodate"]);
+});
+
+test("renameForOrder zero-pads and keeps the extension and type", () => {
+  const file = new File(["x"], "IMG_4821.HEIC", { type: "image/heic" });
+  const renamed = renameForOrder(file, 7);
+  assert.equal(renamed.name, "07.HEIC");
+  assert.equal(renamed.type, "image/heic");
+
+  assert.equal(renameForOrder(new File(["x"], "clip.mov", { type: "video/quicktime" }), 12).name, "12.mov");
+  assert.equal(renameForOrder(new File(["x"], "noext", { type: "" }), 3).name, "03");
 });
 
 test("totalBytes and formatBytes", () => {

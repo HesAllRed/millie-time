@@ -120,6 +120,29 @@ export function assignDays(items, windowSet) {
   }
 }
 
+/**
+ * Give a file a zero-padded, ordered name: 01.jpg, 02.jpg, …
+ *
+ * Some share targets — Mail, Files, anything that treats the payload as a set
+ * of documents — sort attachments by filename. Those get the right order for
+ * free. iMessage sorts by nothing we can reach, so this doesn't help there;
+ * it costs one Blob reference per file and can only improve matters.
+ *
+ * Set `renumberOnShare: false` in config.js if this ever looks like it's
+ * costing memory on a heavy week.
+ */
+export function renameForOrder(file, position) {
+  const dot = file.name.lastIndexOf(".");
+  const ext = dot > 0 ? file.name.slice(dot) : "";
+  const name = `${String(position).padStart(2, "0")}${ext}`;
+  if (file.name === name) return file;
+  try {
+    return new File([file], name, { type: file.type, lastModified: file.lastModified });
+  } catch {
+    return file;                       // never let a rename cost us the share
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Playback. Exactly one <video> exists at any moment, ever.
 // ---------------------------------------------------------------------------

@@ -7,8 +7,8 @@ import {
   state, set, subscribe, days, refreshWindow,
   loadCaptions, saveCaptions, clearAll,
 } from "./state.js";
-import { composeText } from "./compose.js";
-import { ingest, assignDays, stopVideo } from "./media.js";
+import { composeText, orderedItems } from "./compose.js";
+import { ingest, assignDays, stopVideo, renameForOrder } from "./media.js";
 import { renderPrint } from "./print.js";
 import { copyText, runShareLadder, shareWords, sharePhotos } from "./share.js";
 import { renderIntake, renderWindow } from "./views/intake.js";
@@ -32,18 +32,43 @@ loadCaptions();
 // the keys — which is precisely the annoyance this app exists to remove.
 // visualViewport is the only thing that tells the truth here.
 // ---------------------------------------------------------------------------
+let viewportBaseline = 0;
+
 function syncViewport() {
   const vv = window.visualViewport;
-  const height = vv ? vv.height : window.innerHeight;
-  document.documentElement.style.setProperty("--vvh", `${Math.round(height)}px`);
-  const keyboard = window.innerHeight - height;
-  body.classList.toggle("kb-open", keyboard > 120);
+  const height = Math.round(vv ? vv.height : window.innerHeight);
+  const offsetTop = Math.round(vv ? vv.offsetTop : 0);
+
+  // The tallest we have ever been is the no-keyboard height. Safer than
+  // window.innerHeight, which also moves when browser chrome hides.
+  viewportBaseline = Math.max(viewportBaseline, height);
+  const keyboard = Math.max(0, viewportBaseline - height);
+  const open = keyboard > 120;
+
+  const root = document.documentElement;
+  root.style.setProperty("--vvh", `${height}px`);
+
+  // Follow the visual viewport down the page. Without this the shell stays
+  // pinned to the layout viewport and the top of the screen disappears
+  // upward as soon as the keyboard opens.
+  body.style.top = `${offsetTop}px`;
+  if (window.scrollY) window.scrollTo(0, 0);
+
+  body.classList.toggle("kb-open", open);
+
+  // One knob for the crescent: wrapper height and tile scale move together, so
+  // the photos always fit the space left over.
+  root.style.setProperty("--cres-scale", open ? "0.55" : height < 640 ? "0.78" : "1");
 }
+
 if (window.visualViewport) {
   visualViewport.addEventListener("resize", syncViewport);
   visualViewport.addEventListener("scroll", syncViewport);
 }
-window.addEventListener("orientationchange", () => setTimeout(syncViewport, 250));
+window.addEventListener("orientationchange", () => {
+  viewportBaseline = 0;
+  setTimeout(syncViewport, 300);
+});
 window.addEventListener("resize", syncViewport);
 syncViewport();
 
@@ -109,15 +134,21 @@ picker.addEventListener("change", async () => {
 // --- sharing ---------------------------------------------------------------
 
 function payload() {
-  const text = composeText(days(), state.captions, cfg);
-  const files = state.items.map((i) => i.file);
+  const week = days();
+  const text = composeText(week, state.captions, cfg);
+  const ordered = orderedItems(state.items, week);
+  const files = ordered.map((item, i) =>
+    cfg.renumberOnShare ? renameForOrder(item.file, i + 1) : item.file);
   if (printFile) files.unshift(printFile);
   return { text, files };
 }
 
+// A successful share does NOT end the session. She sends the week to several
+// people — landing on a "sent" screen after the first one means reopening the
+// app to send it again. She leaves via "Finished" instead.
 function handleOutcome(res) {
   record("share", JSON.stringify(res.outcome ? { outcome: res.outcome, rung: res.rung } : res));
-  if (res.outcome === "sent") { set({ view: "sent", shareStep: null }); return; }
+  if (res.outcome === "sent") { set({ view: "deck", sharedOnce: true, shareStep: null }); return; }
   if (res.outcome === "cancelled") return;
   if (res.outcome === "stepper") { set({ view: "send", shareStep: "words" }); return; }
   set({ view: "fallback" });
@@ -150,7 +181,7 @@ function doSharePhotos() {
   const { files } = payload();
   stopVideo();
   sharePhotos(files).then((res) => {
-    if (res.outcome === "sent") { set({ view: "sent", shareStep: null }); return; }
+    if (res.outcome === "sent") { set({ view: "deck", sharedOnce: true, shareStep: null }); return; }
     if (res.outcome === "cancelled") return;
     set({ view: "fallback" });
   });
@@ -165,12 +196,13 @@ function renderBusy(root) {
     h("div", { class: "spacer" }),
     h("div", { class: "orb pulse" }),
     h("p", { class: "warmline centred", text: `iOS is getting your ${total} ${total === 1 ? "item" : "items"} ready…` }),
-    h("p", { class: "helper" }, `${done} of ${total}`, h("br"), "Don't close the app."),
+    h("p", { class: "helper", text: `${done} of ${total}` }),
     h("div", { class: "spacer" })
   );
 }
 
 function paint() {
+  app.dataset.view = screenKey();       // lets CSS style a screen without a wrapper
   if (location.hash === "#debug") { renderDebug(app); return; }
   if (state.busy) { renderBusy(app); return; }
 
@@ -208,8 +240,8 @@ function fallbackTransition() {
     paint();
     app.classList.remove("leaving");
     app.classList.add("entering");
-    setTimeout(() => { app.classList.remove("entering"); midTransition = false; }, 280);
-  }, 130);
+    setTimeout(() => { app.classList.remove("entering"); midTransition = false; }, 520);
+  }, 300);
 }
 
 function render() {

@@ -6,7 +6,7 @@ import cfg from "../config.js";
 import { h, clear, crescent, tile } from "../ui.js";
 import { state, set, days, deckDays, saveCaptions } from "../state.js";
 import { dayLabel, rangeLabel } from "../dates.js";
-import { composeText, totalBytes, formatBytes } from "../compose.js";
+import { totalBytes, formatBytes, itemsForDay } from "../compose.js";
 import { playVideo, stopVideo, playingId } from "../media.js";
 
 let gridDay = null;      // ISO day whose full grid is open, or null
@@ -14,13 +14,8 @@ let gridPick = null;     // item id selected inside that grid
 
 export function resetDeck() { gridDay = null; gridPick = null; }
 
-function autoGrow(ta) {
-  ta.style.height = "auto";
-  ta.style.height = `${Math.min(ta.scrollHeight, 260)}px`;
-}
-
 function dayCard(iso, onShare) {
-  const mine = state.items.filter((i) => i.day === iso);
+  const mine = itemsForDay(state.items, iso);
   const label = dayLabel(iso);
 
   const card = h("section", { class: "card", "data-day": iso });
@@ -57,7 +52,6 @@ function dayCard(iso, onShare) {
   ta.addEventListener("input", () => {
     state.captions[iso] = ta.value;
     saveCaptions();
-    autoGrow(ta);
     const count = card.querySelector(".count b");
     if (count) count.textContent = String(ta.value.length);
     // Typing deliberately does not re-render the deck — it would blow away the
@@ -125,14 +119,28 @@ function fillSend(card, onShare) {
       h("p", { text: "Large payloads can stall on cellular. Splitting the heaviest day out would help." })));
   }
 
-  card.append(h("button", { class: "btn", type: "button", text: "Share the week", onclick: onShare }));
+  card.append(h("button", {
+    class: "btn", type: "button",
+    text: state.sharedOnce ? "Share again" : "Share the week",
+    onclick: onShare,
+  }));
+
+  // Sending the same week to several people is the normal case, so a successful
+  // share leaves her here rather than ending the session.
+  if (state.sharedOnce) {
+    card.append(h("button", {
+      class: "btn ghost sm", type: "button", text: "Finished?",
+      style: "margin-top:10px",
+      onclick: () => set({ view: "sent" }),
+    }));
+  }
+
   card.append(h("div", { class: "tally" },
     h("b", { text: String(photos) }), " photos · ",
     h("b", { text: String(videos) }), " videos · ",
     h("b", { text: "1" }), " print · ",
     h("b", { text: formatBytes(bytes) })
   ));
-  card.append(h("p", { class: "helper", text: "Captions get copied to your clipboard too." }));
 }
 
 function gridOverlay() {
@@ -207,7 +215,14 @@ export function renderDeck(root, { onShare }) {
   for (let i = 0; i <= list.length; i++) {
     dots.append(h("i", { class: i === state.deckIndex ? "on" : (i < state.deckIndex ? "done" : "") }));
   }
-  root.append(dots);
+  // Back to sorting, where "Add more photos" lives — captions are already
+  // saved, so nothing she has written is at risk.
+  root.append(h("div", { class: "deckbar" },
+    h("button", { class: "backlink", type: "button", text: "← Photos",
+      onclick: () => set({ view: "sort" }) }),
+    dots,
+    h("span", { class: "deckbar-pad" })
+  ));
 
   const deck = h("div", { class: "deck" });
   for (const iso of list) deck.append(dayCard(iso, onShare));
@@ -235,7 +250,6 @@ export function renderDeck(root, { onShare }) {
   // Restore position after a re-render (tile taps, grid edits).
   requestAnimationFrame(() => {
     deck.scrollLeft = state.deckIndex * deck.clientWidth;
-    deck.querySelectorAll(".editor-field").forEach(autoGrow);
   });
 
   if (gridDay) root.append(gridOverlay());

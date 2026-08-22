@@ -155,5 +155,6 @@ export async function renderPrint(days, captions, cfg) {
 
   const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
   if (!blob) return null;
-  return new File([blob], `millie-time-${days[days.length - 1]}.png`, { type: "image/png" });
+  // "00" so anything that sorts attachments by name puts the print first.
+  return new File([blob], `00-millie-time-${days[days.length - 1]}.png`, { type: "image/png" });
 }

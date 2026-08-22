@@ -8,7 +8,7 @@
 // If this ever ships broken: a standalone PWA has no reload button, so three
 // taps on the version stamp in the footer clears every cache and hard-reloads.
 
-const CACHE_VERSION = "millie-v1.0.1";
+const CACHE_VERSION = "millie-v1.0.2";
 
 const SHELL = [
   "./",
@@ -42,8 +42,14 @@ const SHELL = [
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_VERSION);
-    // Individually, so one missing icon can't fail the whole install.
-    await Promise.all(SHELL.map((url) => cache.add(url).catch(() => {})));
+    await Promise.all(SHELL.map((url) =>
+      // `cache: "reload"` bypasses the HTTP cache entirely. Without it a fresh
+      // service worker can bake a *stale* file into a brand-new cache version —
+      // the update looks applied, the version stamp ticks over, and the actual
+      // change is nowhere to be seen. Individually, so one missing icon can't
+      // fail the whole install.
+      cache.add(new Request(url, { cache: "reload" })).catch(() => {})
+    ));
     await self.skipWaiting();
   })());
 });

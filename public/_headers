@@ -11,6 +11,9 @@
 /index.html
   Cache-Control: no-cache
 
+/app.css
+  Cache-Control: no-cache
+
 /manifest.webmanifest
   Cache-Control: no-cache
 

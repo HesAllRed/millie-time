@@ -31,6 +31,7 @@
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --vvh: 100dvh;
+  --cres-scale: 1;
   --pad-x: 22px;
 }
 
@@ -38,8 +39,13 @@
 
 html{ height: 100%; background: var(--ground); }
 
+/* Pinned to the *visual* viewport, not the layout viewport.
+   When the iOS keyboard opens, Safari keeps the layout viewport at full height
+   and scrolls the visual viewport down inside it. A shell fixed at inset:0 then
+   sits partly above the screen — which is exactly the "text box goes past the
+   top" bug. JS keeps `top` in step with visualViewport.offsetTop instead. */
 body{
-  position: fixed; inset: 0; margin: 0;
+  position: fixed; left: 0; right: 0; top: 0; margin: 0;
   height: var(--vvh);
   display: flex; flex-direction: column;
   background: var(--ground); color: var(--bone);
@@ -74,32 +80,32 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 :focus-visible{ outline: 2px solid var(--safelight); outline-offset: 3px; }
 
 /* --- screen transitions --------------------------------------------------
-   A smear rather than a plain fade: the outgoing screen blurs and slides left
-   while the incoming one arrives from the right, so movement through the app
-   has a direction. Safari 18+ does this natively with the View Transitions
-   API; older iOS gets the same shape from the .leaving/.entering classes.
+   Slow in, quick through the middle, slow out, moving outward from the centre:
+   the old screen swells and blurs away while the new one opens into place
+   behind it. Safari 18+ does this natively via the View Transitions API; older
+   iOS gets the same shape from the .leaving/.entering classes.
    -------------------------------------------------------------------------- */
-
 @keyframes smear-out{
-  from{ opacity: 1; transform: none; filter: blur(0); }
-  to  { opacity: 0; transform: translateX(-16px) scale(.99); filter: blur(7px); }
+  from{ opacity: 1; transform: scale(1);    filter: blur(0); }
+  to  { opacity: 0; transform: scale(1.05); filter: blur(11px); }
 }
 @keyframes smear-in{
-  from{ opacity: 0; transform: translateX(20px) scale(.99); filter: blur(9px); }
-  to  { opacity: 1; transform: none; filter: blur(0); }
+  from{ opacity: 0; transform: scale(.93); filter: blur(13px); }
+  to  { opacity: 1; transform: scale(1);   filter: blur(0); }
 }
 
-::view-transition-old(root){ animation: smear-out .2s cubic-bezier(.4,0,1,1) both; }
-::view-transition-new(root){ animation: smear-in .3s cubic-bezier(0,0,.2,1) both; }
+::view-transition-old(root){ animation: smear-out .36s cubic-bezier(.65,0,.35,1) both; }
+::view-transition-new(root){ animation: smear-in  .52s cubic-bezier(.65,0,.35,1) both; }
 
 #app.leaving{
-  opacity: 0; transform: translateX(-16px) scale(.99); filter: blur(7px);
-  transition: opacity .13s ease-in, transform .13s ease-in, filter .13s ease-in;
+  opacity: 0; transform: scale(1.05); filter: blur(11px);
+  transition: opacity .3s cubic-bezier(.65,0,.35,1),
+              transform .3s cubic-bezier(.65,0,.35,1),
+              filter .3s cubic-bezier(.65,0,.35,1);
 }
-#app.entering{ animation: smear-in .28s cubic-bezier(0,0,.2,1) both; }
+#app.entering{ animation: smear-in .52s cubic-bezier(.65,0,.35,1) both; }
 
 .spacer{ flex: 1 1 auto; min-height: 6px; }
-.centred{ text-align: center; }
 .scroll{ flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
 /* --- type atoms ---------------------------------------------------------- */
@@ -115,7 +121,14 @@ button{ font: inherit; color: inherit; cursor: pointer; }
   font-family: var(--ui); font-weight: 800; font-size: 46px; line-height: .92;
   letter-spacing: -.045em; margin: 14px 0 0;
 }
-.range.wk{ font-size: 38px; line-height: 1.05; }
+.range.wk{ font-size: 46px; line-height: 1.06; }
+
+/* The entry screen is the one she sees every week — centred and larger. */
+#app[data-view="intake"]{ text-align: center; }
+#app[data-view="intake"] .brandline{ text-align: center; font-size: 12px; }
+#app[data-view="intake"] .range.wk{ font-size: 52px; }
+#app[data-view="intake"] .penline{ font-size: 32px; max-width: 18ch; margin-left: auto; margin-right: auto; }
+#app[data-view="intake"] .editchip{ font-size: 11px; padding: 9px 14px; }
 .range.wk.small{ font-size: 26px; }
 .range .wd{ color: var(--safelight); }
 .range .arw{ color: var(--bone-mute); }
@@ -188,14 +201,17 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 
 /* --- crescent ------------------------------------------------------------ */
 
+/* One knob, set from JS: the wrapper's height and the tiles' scale move
+   together, so the crescent can never overflow the space reserved for it. */
 .cres-wrap{
-  flex: 0 0 auto; height: 238px;
+  flex: 0 0 auto; height: calc(238px * var(--cres-scale));
   display: flex; align-items: center; justify-content: center;
-  transition: height .18s ease;
+  transition: height .2s ease;
 }
 .cres{
   display: flex; align-items: center; justify-content: center;
-  transform-origin: center center; transition: transform .18s ease;
+  transform-origin: center center; transition: transform .2s ease;
+  transform: scale(var(--cres-scale));
 }
 .more{
   align-self: center; margin-left: 8px;
@@ -206,13 +222,22 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 
 /* When the keyboard is up the crescent shrinks and rises instead of hiding
    behind it. Scaling the wrapper avoids re-rendering and losing the caret. */
-.kb-open .cres-wrap{ height: 122px; }
-.kb-open .cres{ transform: scale(.58); }
 .kb-open .dayline{ margin-top: 4px; }
 .kb-open .dayline b{ font-size: 18px; }
 .kb-open .swipe{ display: none; }
 
 /* --- deck ---------------------------------------------------------------- */
+
+/* Back to the photos sits on the bar with the day dots, so she can add more
+   without losing what she has written. */
+.deckbar{ display: flex; align-items: center; gap: 10px; flex: 0 0 auto; padding: 4px 0 2px; }
+.deckbar .dots{ flex: 1 1 auto; }
+.backlink{
+  flex: 0 0 auto; background: none; border: 0; padding: 6px 2px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--safelight);
+}
+.deckbar-pad{ flex: 0 0 auto; width: 62px; }
 
 .dots{ display: flex; gap: 7px; justify-content: center; padding: 10px 0 2px; flex: 0 0 auto; }
 .dots i{ width: 7px; height: 7px; border-radius: 99px; background: var(--edge); display: block; transition: width .15s ease; }
@@ -236,14 +261,19 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .dayline b{ display: block; font-family: var(--ui); font-weight: 800; font-size: 24px; letter-spacing: -.02em; text-transform: uppercase; }
 .dayline span{ font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; color: var(--safelight); text-transform: uppercase; }
 
+/* The editor takes whatever height is left and scrolls internally. It used to
+   auto-grow to fit its content, which meant the card's total height changed as
+   she typed — and on a short screen that pushed the field out of view. */
 .editor{
-  flex: 0 0 auto; margin-top: 12px;
+  flex: 1 1 auto; min-height: 92px; margin-top: 12px;
+  display: flex; flex-direction: column;
   border: 2px solid var(--edge); border-radius: 3px; background: var(--surface);
   padding: 12px 13px 6px;
 }
 .editor:focus-within{ border-color: var(--safelight); }
 .editor-field{
-  display: block; width: 100%; min-height: 76px; max-height: 260px;
+  display: block; width: 100%; flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
   background: transparent; border: 0; outline: none; resize: none;
   color: var(--bone); font-family: var(--hand); font-size: 17px; line-height: 1.45;
   -webkit-user-select: text; user-select: text;
@@ -255,7 +285,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
   text-transform: uppercase;
 }
 .count b{ color: var(--safelight); font-weight: 500; }
-.swipe{ font-family: var(--mono); font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--bone-mute); text-align: right; margin: 10px 0 0; flex: 0 0 auto; }
+.swipe{ font-family: var(--mono); font-size: 17px; letter-spacing: .16em; text-transform: uppercase; color: var(--bone-mute); text-align: right; margin: 12px 0 0; flex: 0 0 auto; }
 
 /* --- sort ---------------------------------------------------------------- */
 
@@ -373,3 +403,11 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .dbg-row b.bad{ color: var(--magenta); }
 .dbg-h{ font-family: var(--mono); font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--safelight); margin: 12px 0 8px; }
 .dbg-log{ font-family: var(--mono); font-size: 10px; line-height: 1.6; color: var(--bone-dim); background: var(--surface); border: 1px solid var(--edge); border-radius: 3px; padding: 10px; white-space: pre-wrap; word-break: break-word; margin: 0 0 14px; -webkit-user-select: text; user-select: text; }
+
+/* --- utilities -----------------------------------------------------------
+   Last in the file on purpose. `.centred` and a component rule like
+   `.brandline { text-align: left }` have equal specificity, so whichever comes
+   later wins — and a utility that loses to the thing it is modifying is worse
+   than no utility at all.
+   -------------------------------------------------------------------------- */
+.centred{ text-align: center; }
