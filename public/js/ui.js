@@ -52,14 +52,16 @@ export function tilt(i, m, compact = false) {
   return { rot: t * 12, ty: Math.abs(t) * lift };
 }
 
-export function tile(item, { w, h, onTap, selected } = {}) {
+// NB: the size options are `width`/`height`, not `w`/`h` — destructuring `h`
+// here would shadow the element helper above and break every tile.
+export function tile(item, { width, height, onTap, selected } = {}) {
   const el = h("button", {
     type: "button",
     class: `ph${item.kind === "video" ? " vid" : ""}${selected ? " sel" : ""}`,
     "data-id": item.id,
     "aria-label": item.kind === "video" ? "Video" : "Photo",
   });
-  if (w) { el.style.width = `${w}px`; el.style.height = `${h}px`; }
+  if (width) { el.style.width = `${width}px`; el.style.height = `${height}px`; }
   if (item.url) el.style.backgroundImage = `url("${item.url}")`;
   if (onTap) el.addEventListener("click", (e) => onTap(item, el, e));
   return el;
@@ -72,7 +74,7 @@ export function crescent(items, { compact = false, onTapTile, onTapMore } = {}) 
 
   const wrap = h("div", { class: `cres${compact ? " compact" : ""}` });
   shown.forEach((item, i) => {
-    const el = tile(item, { w: geo.w, h: geo.h, onTap: onTapTile });
+    const el = tile(item, { width: geo.w, height: geo.h, onTap: onTapTile });
     const { rot, ty } = tilt(i, shown.length, compact);
     el.style.transform = `rotate(${rot.toFixed(1)}deg) translateY(${ty.toFixed(0)}px)`;
     el.style.margin = `0 ${geo.gap}px`;

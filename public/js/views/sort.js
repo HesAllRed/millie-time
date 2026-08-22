@@ -49,7 +49,9 @@ export function renderSort(root, { onDone, onAddMore }) {
         h("span", {}, h("b", { text: label.wd }), ` ${label.dm}`),
         h("span", { text: mine.length ? `${mine.length}` : "" })
       ),
-      mine.length ? strip(mine, onTap) : h("div", { class: "nowt", text: "nothing yet" })
+      // Empty days collapse to a dim label. Eight full-height "nothing yet"
+      // rows push the days that actually have photos below the fold.
+      mine.length ? strip(mine, onTap) : null
     );
     scroller.append(row);
   }

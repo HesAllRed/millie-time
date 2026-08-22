@@ -170,7 +170,7 @@ function renderBusy(root) {
   );
 }
 
-function render() {
+function paint() {
   if (location.hash === "#debug") { renderDebug(app); return; }
   if (state.busy) { renderBusy(app); return; }
 
@@ -183,6 +183,43 @@ function render() {
     case "fallback": renderFallback(app, { onRetry: () => set({ view: "deck" }) }); break;
     default:         renderIntake(app, { onPick: openPicker });
   }
+}
+
+// Animate only when the screen actually changes. Selecting a tile or editing a
+// day re-renders too, and smearing on every one of those would be seasickness.
+// Read live rather than cached, so turning Reduce Motion on in iOS Settings
+// takes effect without relaunching the app.
+const prefersReducedMotion = () =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+let lastScreen = null;
+let midTransition = false;
+
+function screenKey() {
+  if (location.hash === "#debug") return "debug";
+  if (state.busy) return "busy";
+  return state.view;
+}
+
+function fallbackTransition() {
+  midTransition = true;
+  app.classList.add("leaving");
+  setTimeout(() => {
+    paint();
+    app.classList.remove("leaving");
+    app.classList.add("entering");
+    setTimeout(() => { app.classList.remove("entering"); midTransition = false; }, 280);
+  }, 130);
+}
+
+function render() {
+  const key = screenKey();
+  const changed = lastScreen !== null && key !== lastScreen;
+  lastScreen = key;
+
+  if (!changed || midTransition || prefersReducedMotion()) { paint(); return; }
+  if (document.startViewTransition) { document.startViewTransition(() => paint()); return; }
+  fallbackTransition();
 }
 
 subscribe(render);

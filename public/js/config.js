@@ -29,5 +29,5 @@ export default {
   warnBytes: 55 * 1024 * 1024,
 
   // Bumped on release; shown in the footer and on #debug.
-  version: "1.0.0",
+  version: "1.0.1",
 };

@@ -73,6 +73,31 @@ body{
 button{ font: inherit; color: inherit; cursor: pointer; }
 :focus-visible{ outline: 2px solid var(--safelight); outline-offset: 3px; }
 
+/* --- screen transitions --------------------------------------------------
+   A smear rather than a plain fade: the outgoing screen blurs and slides left
+   while the incoming one arrives from the right, so movement through the app
+   has a direction. Safari 18+ does this natively with the View Transitions
+   API; older iOS gets the same shape from the .leaving/.entering classes.
+   -------------------------------------------------------------------------- */
+
+@keyframes smear-out{
+  from{ opacity: 1; transform: none; filter: blur(0); }
+  to  { opacity: 0; transform: translateX(-16px) scale(.99); filter: blur(7px); }
+}
+@keyframes smear-in{
+  from{ opacity: 0; transform: translateX(20px) scale(.99); filter: blur(9px); }
+  to  { opacity: 1; transform: none; filter: blur(0); }
+}
+
+::view-transition-old(root){ animation: smear-out .2s cubic-bezier(.4,0,1,1) both; }
+::view-transition-new(root){ animation: smear-in .3s cubic-bezier(0,0,.2,1) both; }
+
+#app.leaving{
+  opacity: 0; transform: translateX(-16px) scale(.99); filter: blur(7px);
+  transition: opacity .13s ease-in, transform .13s ease-in, filter .13s ease-in;
+}
+#app.entering{ animation: smear-in .28s cubic-bezier(0,0,.2,1) both; }
+
 .spacer{ flex: 1 1 auto; min-height: 6px; }
 .centred{ text-align: center; }
 .scroll{ flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -240,7 +265,8 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .dayrow{ padding: 13px 0; border-bottom: 1px solid var(--edge-soft); }
 .dayrow-h{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--bone-dim); }
 .dayrow-h b{ color: var(--bone); font-weight: 500; }
-.dayrow.empty .dayrow-h{ color: var(--bone-mute); }
+.dayrow.empty{ padding: 7px 0; opacity: .5; }
+.dayrow.empty .dayrow-h{ color: var(--bone-mute); margin-bottom: 0; }
 
 .sheet{ margin: 8px calc(var(--pad-x) * -1) 0; background: var(--surface-2); border-top: 2px solid var(--bone); padding: 16px var(--pad-x) 12px; flex: 0 0 auto; }
 .sheet-t{ font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--bone-dim); margin: 12px 0 10px; }
@@ -324,6 +350,9 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce){
   .pulse{ animation: none; opacity: .9; }
   .cres, .cres-wrap, .dots i, .toggle .sw2, .toggle .sw2::after{ transition: none; }
+  ::view-transition-old(root), ::view-transition-new(root){ animation: none; }
+  #app.leaving{ opacity: 1; transform: none; filter: none; transition: none; }
+  #app.entering{ animation: none; }
 }
 
 /* --- day grid overlay ---------------------------------------------------- */

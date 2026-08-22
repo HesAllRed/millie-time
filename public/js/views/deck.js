@@ -77,6 +77,19 @@ function dayCard(iso, onShare) {
 
 function sendCard(onShare) {
   const card = h("section", { class: "card card-send", "data-day": "__send" });
+  fillSend(card, onShare);
+  return card;
+}
+
+/**
+ * Rebuild the Send card's contents from current state.
+ *
+ * Typing deliberately doesn't re-render the deck — that would kill the caret —
+ * so this card would otherwise still be showing whatever the captions were when
+ * she entered the deck. It gets refreshed on arrival instead.
+ */
+function fillSend(card, onShare) {
+  clear(card);
   const window = days();
   const withText = window.filter((iso) => (state.captions[iso] || "").trim());
   const bytes = totalBytes(state.items);
@@ -120,7 +133,6 @@ function sendCard(onShare) {
     h("b", { text: formatBytes(bytes) })
   ));
   card.append(h("p", { class: "helper", text: "Captions get copied to your clipboard too." }));
-  return card;
 }
 
 function gridOverlay() {
@@ -199,7 +211,8 @@ export function renderDeck(root, { onShare }) {
 
   const deck = h("div", { class: "deck" });
   for (const iso of list) deck.append(dayCard(iso, onShare));
-  deck.append(sendCard(onShare));
+  const send = sendCard(onShare);
+  deck.append(send);
   root.append(deck);
 
   // Keep the dots honest without re-rendering the whole deck on every swipe.
@@ -215,6 +228,7 @@ export function renderDeck(root, { onShare }) {
       [...dots.children].forEach((d, i) => {
         d.className = i === idx ? "on" : (i < idx ? "done" : "");
       });
+      if (idx === list.length) fillSend(send, onShare);   // show what she just wrote
     });
   }, { passive: true });
 
