@@ -1,0 +1,29 @@
+# Cloudflare Pages header rules.
+#
+# The no-cache on sw.js is the load-bearing line: the service worker is the file
+# that gates every future update, and without header control you are at the
+# mercy of the CDN's default TTL on exactly the wrong file. This is why the
+# project is hosted here rather than on GitHub Pages.
+
+/sw.js
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache
+
+/js/*
+  Cache-Control: no-cache
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/icons/*
+  Cache-Control: public, max-age=604800
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: geolocation=(), microphone=(), camera=()

@@ -1,0 +1,11 @@
+{
+  "name": "millie-time",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Weekly photo recap PWA. No build step, no dependencies.",
+  "scripts": {
+    "test": "node --test",
+    "serve": "npx --yes serve public"
+  }
+}

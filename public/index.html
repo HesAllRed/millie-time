@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover is required or content sits under the Dynamic Island
+     once this is launched from the home screen. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Millie Time</title>
+<meta name="description" content="The weekly recap, in one go.">
+<meta name="theme-color" content="#101116">
+
+<!-- iOS still honours these alongside the manifest, and older versions ignore
+     the manifest icons for the home screen entirely. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Millie Time">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-192.png" sizes="192x192">
+<link rel="stylesheet" href="./app.css">
+</head>
+
+<body id="body">
+  <main id="app" class="body" role="main"></main>
+
+  <footer class="foot">
+    <button id="stamp" type="button" class="stamp" aria-label="Version. Tap three times to reset the app."></button>
+  </footer>
+
+  <!-- Apple's picker opens newest-first. There is no API to query the camera
+       roll by date, so this is the only way in. -->
+  <input id="picker" type="file" accept="image/*,video/*" multiple hidden>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
