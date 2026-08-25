@@ -357,6 +357,11 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 
 .tally{ display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--bone-dim); margin-top: 12px; }
 .tally b{ color: var(--bone); font-weight: 500; }
+.stray{
+  display: block; width: 100%; margin-top: 8px; background: none; border: 0; padding: 6px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--magenta);
+}
 
 /* --- stepper, notices, orb ----------------------------------------------- */
 

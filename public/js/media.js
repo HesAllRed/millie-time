@@ -166,15 +166,24 @@ export function assignDays(items, windowSet) {
  * Set `renumberOnShare: false` in config.js if this ever looks like it's
  * costing memory on a heavy week.
  */
-export function renameForOrder(file, position) {
+export function renameForOrder(file, position, baseTime = Date.now()) {
   const dot = file.name.lastIndexOf(".");
   const ext = dot > 0 ? file.name.slice(dot) : "";
   const name = `${String(position).padStart(2, "0")}${ext}`;
-  if (file.name === name) return file;
+  // Timestamp as well as name. Messages is reported to sort attachments by
+  // both, and every file arrived carrying Safari's *export* time — near
+  // identical across the batch and unrelated to the week. Now they ascend in
+  // the order we intend. The photo's real capture date lives in its EXIF,
+  // which is untouched, so Photos still sorts it correctly.
+  return stampTime(file, baseTime + position * 1000, name);
+}
+
+/** Rebuild a File with a new timestamp, and optionally a new name. */
+export function stampTime(file, lastModified, name = file.name) {
   try {
-    return new File([file], name, { type: file.type, lastModified: file.lastModified });
+    return new File([file], name, { type: file.type, lastModified });
   } catch {
-    return file;                       // never let a rename cost us the share
+    return file;                       // never let this cost us the share
   }
 }
 

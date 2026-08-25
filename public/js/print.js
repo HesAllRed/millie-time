@@ -9,6 +9,7 @@
 // card would in a bright Messages thread.
 
 import { dayLabel, rangeLabel } from "./dates.js";
+import { messageDays } from "./compose.js";
 
 const W        = 1080;
 const PAD      = 72;
@@ -85,7 +86,9 @@ async function ensureFonts() {
 export async function renderPrint(days, captions, cfg) {
   await ensureFonts();
 
-  const rows = days
+  // Same union as the message: a caption outside the window still gets printed.
+  const span = messageDays(days, captions);
+  const rows = span
     .map((iso) => ({ iso, text: (captions[iso] || "").trim() }))
     .filter((r) => r.text);
   if (!rows.length) return null;
@@ -120,7 +123,7 @@ export async function renderPrint(days, captions, cfg) {
   ctx.font = font(MONO, 22);
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = ACCENT;
-  ctx.fillText(rangeLabel(days).toUpperCase(), PAD, PAD + 22);
+  ctx.fillText(rangeLabel(span).toUpperCase(), PAD, PAD + 22);
   const nameText = cfg.name.toUpperCase();
   ctx.fillText(nameText, W - PAD - ctx.measureText(nameText).width, PAD + 22);
 
@@ -156,5 +159,5 @@ export async function renderPrint(days, captions, cfg) {
   const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
   if (!blob) return null;
   // "00" so anything that sorts attachments by name puts the print first.
-  return new File([blob], `00-millie-time-${days[days.length - 1]}.png`, { type: "image/png" });
+  return new File([blob], `00-millie-time-${span[span.length - 1]}.png`, { type: "image/png" });
 }

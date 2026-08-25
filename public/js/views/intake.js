@@ -64,7 +64,7 @@ export function renderWindow(root) {
       class: `pick-row${on ? " on" : ""}`,
       onclick: () => {
         state.autoWindow = false;
-        set({ endIso: addDays(iso, cfg.weekLength - 1) });
+        set({ startIso: iso, endIso: addDays(iso, cfg.weekLength - 1) });
       },
     },
       h("span", {}, h("b", { text: label.wd }), `  ${label.dm}`),

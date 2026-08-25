@@ -8,12 +8,29 @@ import { dayLabel, rangeLabel } from "./dates.js";
  * @param {Object}   cfg      config
  * @returns {string} the message body, exactly as it will be sent
  */
+/**
+ * Every day the message should mention: the window, plus any day carrying a
+ * caption even if it somehow sits outside it.
+ *
+ * The union is deliberate belt-and-braces. A caption falling out of the window
+ * is exactly how a day's writing went missing once; if that ever happens again
+ * her words still reach the message.
+ */
+export function messageDays(days, captions) {
+  const all = new Set(days);
+  for (const [iso, text] of Object.entries(captions || {})) {
+    if (typeof text === "string" && text.trim()) all.add(iso);
+  }
+  return [...all].sort();
+}
+
 export function composeText(days, captions, cfg) {
+  const span = messageDays(days, captions);
   const lines = [];
-  lines.push(`${cfg.printTitle} · ${rangeLabel(days)}`);
+  lines.push(`${cfg.printTitle} · ${rangeLabel(span)}`);
   lines.push("");
 
-  for (const iso of days) {
+  for (const iso of span) {
     const text = (captions[iso] || "").trim();
     if (!text) continue;
     lines.push(`${dayLabel(iso).wd}  ${text}`);

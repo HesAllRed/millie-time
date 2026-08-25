@@ -4,7 +4,7 @@
 
 import cfg from "../config.js";
 import { h, clear, crescent, tile } from "../ui.js";
-import { state, set, days, deckDays, saveCaptions } from "../state.js";
+import { state, set, days, deckDays, saveSession, unsortedCount } from "../state.js";
 import { dayLabel, rangeLabel } from "../dates.js";
 import { totalBytes, formatBytes, itemsForDay } from "../compose.js";
 import { playVideo, stopVideo } from "../media.js";
@@ -55,7 +55,7 @@ function dayCard(iso, onShare) {
   ta.value = state.captions[iso] || "";
   ta.addEventListener("input", () => {
     state.captions[iso] = ta.value;
-    saveCaptions();
+    saveSession();
     const count = card.querySelector(".count b");
     if (count) count.textContent = String(ta.value.length);
     // Typing deliberately does not re-render the deck — it would blow away the
@@ -139,6 +139,17 @@ function fillSend(card, onShare) {
     h("b", { text: "1" }), " print · ",
     h("b", { text: formatBytes(bytes) })
   ));
+
+  // A photo without a day still sends, but it lands at the end and gets no
+  // caption. That used to be completely invisible.
+  const stray = unsortedCount();
+  if (stray) {
+    card.append(h("button", {
+      class: "stray", type: "button",
+      text: `${stray} not on a day — they'll send last`,
+      onclick: () => set({ view: "sort" }),
+    }));
+  }
 }
 
 function gridOverlay() {

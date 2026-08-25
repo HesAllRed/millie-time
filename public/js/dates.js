@@ -35,6 +35,66 @@ export function windowDays(endIso, length) {
   return out;
 }
 
+/** Inclusive ascending list of ISO days from start to end. */
+export function rangeBetween(startIso, endIso) {
+  if (startIso > endIso) return [endIso];
+  const out = [];
+  let cur = startIso;
+  while (cur <= endIso && out.length < 400) {
+    out.push(cur);
+    cur = addDays(cur, 1);
+  }
+  return out;
+}
+
+/** Whole days from a to b. Negative if b is earlier. */
+export function daysBetween(aIso, bIso) {
+  return Math.round((dayDate(bIso) - dayDate(aIso)) / 86400000);
+}
+
+/**
+ * Work out which days the week covers.
+ *
+ * The window used to be a fixed-length span anchored to the newest photo, which
+ * meant adding a newer photo slid the whole span forward and silently dropped
+ * the oldest day — along with its photos and its caption. So the window is now
+ * defined by its *content*: it starts no later than the oldest thing in it and
+ * ends no earlier than the newest, and `weekLength` is only a minimum.
+ *
+ * @param {Object}   opts
+ * @param {Array}    opts.items       items with a `takenAt`
+ * @param {Object}   opts.captions    ISO day -> text
+ * @param {number}   opts.weekLength  minimum span, in days
+ * @param {number}   opts.maxDays     hard cap; anything older stays unsorted
+ * @param {Object}  [opts.base]       a window to keep covered (used when resuming)
+ * @returns {{startIso: string, endIso: string}}
+ */
+export function resolveWindow({
+  items = [], captions = {}, weekLength = 8, maxDays = 21, base = null, now = new Date(),
+} = {}) {
+  const marks = [];
+  for (const item of items) if (item && item.takenAt) marks.push(isoDay(item.takenAt));
+  for (const [iso, text] of Object.entries(captions)) {
+    if (typeof text === "string" && text.trim()) marks.push(iso);
+  }
+  if (base && base.startIso && base.endIso) marks.push(base.startIso, base.endIso);
+
+  const endIso = marks.length ? marks.reduce((a, b) => (a > b ? a : b)) : isoDay(now);
+
+  let startIso = addDays(endIso, -(weekLength - 1));
+  if (marks.length) {
+    const oldest = marks.reduce((a, b) => (a < b ? a : b));
+    if (oldest < startIso) startIso = oldest;
+  }
+
+  // A stray photo from months ago shouldn't produce a hundred-day deck. Past the
+  // cap it stays in the Unsorted tray, which is visible, rather than silently
+  // vanishing, which is what this whole function exists to prevent.
+  if (daysBetween(startIso, endIso) + 1 > maxDays) startIso = addDays(endIso, -(maxDays - 1));
+
+  return { startIso, endIso };
+}
+
 /** { wd: "THU", dm: "AUG 21", day: 21, weekday: "Thursday" } */
 export function dayLabel(iso) {
   const d = dayDate(iso);

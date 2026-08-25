@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   isoDay, addDays, windowDays, dayLabel, rangeLabel, resolveEnd,
+  rangeBetween, daysBetween, resolveWindow,
 } from "../public/js/dates.js";
 
 test("isoDay uses local calendar fields, not UTC", () => {
@@ -66,4 +67,82 @@ test("resolveEnd ignores item dates in today mode", () => {
   const now = new Date(2026, 7, 21, 10);
   const items = [{ takenAt: new Date(2026, 6, 1) }];
   assert.equal(resolveEnd(items, "today", now), "2026-08-21");
+});
+
+// --- the window ------------------------------------------------------------
+
+const item = (iso, h = 12) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return { takenAt: new Date(y, m - 1, d, h) };
+};
+const WEEK = { weekLength: 8, maxDays: 21 };
+
+test("rangeBetween is inclusive and ascending", () => {
+  assert.deepEqual(rangeBetween("2026-08-20", "2026-08-23"),
+    ["2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23"]);
+  assert.deepEqual(rangeBetween("2026-08-20", "2026-08-20"), ["2026-08-20"]);
+  // Reversed input must still yield a usable day rather than an empty deck.
+  assert.deepEqual(rangeBetween("2026-08-25", "2026-08-20"), ["2026-08-20"]);
+});
+
+test("daysBetween counts whole days in both directions", () => {
+  assert.equal(daysBetween("2026-08-15", "2026-08-22"), 7);
+  assert.equal(daysBetween("2026-08-22", "2026-08-15"), -7);
+  assert.equal(daysBetween("2026-08-22", "2026-08-22"), 0);
+});
+
+test("resolveWindow with no content is weekLength days ending today", () => {
+  const now = new Date(2026, 7, 22, 10);
+  assert.deepEqual(resolveWindow({ ...WEEK, now }),
+    { startIso: "2026-08-15", endIso: "2026-08-22" });
+});
+
+// THE REGRESSION. Adding a photo newer than the newest used to slide the whole
+// window forward and drop the oldest day, taking its photos and caption with it.
+test("resolveWindow grows forward without dropping the oldest day", () => {
+  const monday = "2026-08-10";
+  const items = [item(monday), item("2026-08-13"), item("2026-08-16")];
+  const captions = { [monday]: "coffee walk" };
+
+  const before = resolveWindow({ ...WEEK, items, captions });
+  assert.ok(rangeBetween(before.startIso, before.endIso).includes(monday));
+
+  // …now she adds one taken two days after the previous newest.
+  const after = resolveWindow({ ...WEEK, items: [...items, item("2026-08-18")], captions });
+  const span = rangeBetween(after.startIso, after.endIso);
+  assert.ok(span.includes(monday), "Monday must survive a newer photo");
+  assert.ok(span.includes("2026-08-18"), "and the new photo must be covered");
+  assert.equal(after.startIso, monday);
+  assert.equal(after.endIso, "2026-08-18");
+});
+
+test("resolveWindow keeps a captioned day even with no photo on it", () => {
+  const items = [item("2026-08-20")];
+  const captions = { "2026-08-05": "written long before anything was picked" };
+  const { startIso, endIso } = resolveWindow({ ...WEEK, items, captions });
+  assert.ok(rangeBetween(startIso, endIso).includes("2026-08-05"));
+});
+
+test("resolveWindow never shrinks below weekLength", () => {
+  const { startIso, endIso } = resolveWindow({ ...WEEK, items: [item("2026-08-22")] });
+  assert.equal(rangeBetween(startIso, endIso).length, 8);
+  assert.equal(endIso, "2026-08-22");
+});
+
+test("resolveWindow clamps a stray ancient photo at maxDays", () => {
+  const items = [item("2025-01-01"), item("2026-08-22")];
+  const { startIso, endIso } = resolveWindow({ ...WEEK, items });
+  const span = rangeBetween(startIso, endIso);
+  assert.equal(span.length, 21);
+  assert.equal(endIso, "2026-08-22");
+  assert.ok(!span.includes("2025-01-01"), "the outlier stays unsorted, not stretching the deck");
+});
+
+test("resolveWindow keeps a base window covered when resuming", () => {
+  // Restored week ran Mon-Sun, but only Monday has been written about so far.
+  const base = { startIso: "2026-08-15", endIso: "2026-08-22" };
+  const captions = { "2026-08-15": "just the first day so far" };
+  const { startIso, endIso } = resolveWindow({ ...WEEK, captions, base });
+  assert.equal(startIso, "2026-08-15");
+  assert.equal(endIso, "2026-08-22", "resuming must not shrink the week to what she's written");
 });

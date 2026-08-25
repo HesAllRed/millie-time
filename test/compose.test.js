@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  composeText, activeDays, totalBytes, formatBytes, itemsForDay, orderedItems,
+  composeText, activeDays, totalBytes, formatBytes, itemsForDay, orderedItems, messageDays,
 } from "../public/js/compose.js";
-import { renameForOrder } from "../public/js/media.js";
+import { renameForOrder, stampTime } from "../public/js/media.js";
 import { windowDays } from "../public/js/dates.js";
 
 const cfg = { printTitle: "This week", name: "Millie Time" };
@@ -110,4 +110,61 @@ test("totalBytes and formatBytes", () => {
   assert.equal(totalBytes([]), 0);
   assert.equal(formatBytes(1024), "1 KB");
   assert.equal(formatBytes(5 * 1024 * 1024), "5.0 MB");
+});
+
+// --- orphan captions can never be silently dropped -------------------------
+
+test("messageDays unions the window with any captioned day, in date order", () => {
+  const out = messageDays(["2026-08-16", "2026-08-17"], { "2026-08-09": "older", "2026-08-16": "in" });
+  assert.deepEqual(out, ["2026-08-09", "2026-08-16", "2026-08-17"]);
+});
+
+test("messageDays ignores blank captions and tolerates no captions", () => {
+  assert.deepEqual(messageDays(["2026-08-16"], { "2026-08-09": "  " }), ["2026-08-16"]);
+  assert.deepEqual(messageDays(["2026-08-16"], null), ["2026-08-16"]);
+});
+
+test("composeText still carries a caption that fell outside the window", () => {
+  const out = composeText(week, {
+    "2026-08-09": "the day that went missing",
+    "2026-08-16": "in the window",
+  }, cfg);
+  assert.match(out, /the day that went missing/);
+  assert.match(out, /in the window/);
+  assert.ok(out.indexOf("the day that went missing") < out.indexOf("in the window"),
+    "and in date order");
+});
+
+test("composeText widens its header range to cover an orphan day", () => {
+  const out = composeText(week, { "2026-08-09": "older than the window" }, cfg);
+  assert.equal(out.split("\n")[0], "This week · AUG 9 — 21");
+});
+
+// --- share ordering --------------------------------------------------------
+
+test("renameForOrder makes names AND timestamps ascend together", () => {
+  const base = 1_700_000_000_000;
+  const files = ["a.jpg", "b.HEIC", "c.mov"].map((n, i) =>
+    renameForOrder(new File(["x"], n, { type: "image/jpeg" }), i + 1, base));
+
+  assert.deepEqual(files.map((f) => f.name), ["01.jpg", "02.HEIC", "03.mov"]);
+  for (let i = 1; i < files.length; i++) {
+    assert.ok(files[i].lastModified > files[i - 1].lastModified,
+      "Messages is reported to sort by timestamp, so these must ascend");
+  }
+  assert.equal(files[0].lastModified, base + 1000);
+});
+
+test("renameForOrder overrides Safari's export timestamp rather than keeping it", () => {
+  const stale = new File(["x"], "IMG_1.jpg", { type: "image/jpeg", lastModified: 999 });
+  const out = renameForOrder(stale, 4, 1_700_000_000_000);
+  assert.notEqual(out.lastModified, 999);
+  assert.equal(out.lastModified, 1_700_000_000_000 + 4000);
+});
+
+test("stampTime keeps the name and only moves the clock", () => {
+  const print = new File(["x"], "00-millie-time-2026-08-22.png", { type: "image/png" });
+  const out = stampTime(print, 12345);
+  assert.equal(out.name, "00-millie-time-2026-08-22.png");
+  assert.equal(out.lastModified, 12345);
 });

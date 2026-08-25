@@ -4,11 +4,11 @@
 import cfg from "./config.js";
 import { h, clear, orb } from "./ui.js";
 import {
-  state, set, subscribe, days, refreshWindow,
-  loadCaptions, saveCaptions, clearAll,
+  state, set, subscribe, days, refreshWindow, unsortedCount,
+  loadSession, saveSession, writeSession, clearAll,
 } from "./state.js";
 import { composeText, orderedItems } from "./compose.js";
-import { ingest, assignDays, stopVideo, renameForOrder } from "./media.js";
+import { ingest, assignDays, stopVideo, renameForOrder, stampTime } from "./media.js";
 import { renderPrint } from "./print.js";
 import { copyText, runShareLadder, shareWords, sharePhotos } from "./share.js";
 import { renderIntake, renderWindow } from "./views/intake.js";
@@ -22,7 +22,7 @@ const body = document.getElementById("body");
 const picker = document.getElementById("picker");
 
 installLogging();
-loadCaptions();
+loadSession();
 
 // ---------------------------------------------------------------------------
 // The keyboard is the whole ballgame.
@@ -83,7 +83,7 @@ let printTimer = null;
 function schedulePrint() {
   clearTimeout(printTimer);
   printTimer = setTimeout(async () => {
-    const sig = JSON.stringify(state.captions) + state.endIso;
+    const sig = JSON.stringify(state.captions) + state.startIso + state.endIso;
     if (sig === printSig && printFile) return;
     try {
       printFile = await renderPrint(days(), state.captions, cfg);
@@ -120,7 +120,9 @@ picker.addEventListener("change", async () => {
     state.items = state.items.concat(added);
     refreshWindow();
     assignDays(state.items, new Set(days()));
-    record("intake", `${added.length} items, ${state.items.filter((i) => !i.day).length} unsorted`);
+    saveSession();                       // the window moved; persist it with the captions
+    record("intake",
+      `${added.length} added · window ${state.startIso}→${state.endIso} · ${unsortedCount()} unsorted`);
     resetSort();
     resetDeck();
     set({ busy: null, view: "sort" });
@@ -137,9 +139,18 @@ function payload() {
   const week = days();
   const text = composeText(week, state.captions, cfg);
   const ordered = orderedItems(state.items, week);
+
+  // One base for the whole batch, so names and timestamps ascend together.
+  const base = Date.now() - (ordered.length + 2) * 1000;
   const files = ordered.map((item, i) =>
-    cfg.renumberOnShare ? renameForOrder(item.file, i + 1) : item.file);
-  if (printFile) files.unshift(printFile);
+    cfg.renumberOnShare ? renameForOrder(item.file, i + 1, base) : item.file);
+
+  if (printFile) {
+    // The print keeps its descriptive "00-" name but takes the earliest stamp.
+    files.unshift(cfg.renumberOnShare ? stampTime(printFile, base) : printFile);
+  }
+
+  record("payload", files.map((f, i) => `${i}:${f.name}@${f.lastModified}`).join(" "));
   return { text, files };
 }
 
@@ -288,8 +299,10 @@ if ("serviceWorker" in navigator && window.isSecureContext) {
   });
 }
 
-// Captions are the irreplaceable part; flush them if iOS is about to kill us.
-window.addEventListener("pagehide", saveCaptions);
+// Captions are the irreplaceable part, and iOS kills backgrounded PWAs freely —
+// including when she flips to the camera roll to check a date. Write
+// synchronously here: a debounced save would never land.
+window.addEventListener("pagehide", writeSession);
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") { saveCaptions(); stopVideo(); }
+  if (document.visibilityState === "hidden") { writeSession(); stopVideo(); }
 });
