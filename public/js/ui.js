@@ -23,6 +23,14 @@ export function clear(el) {
 }
 
 /**
+ * Read live, never cached, so turning Reduce Motion on in iOS Settings takes
+ * effect without relaunching the app.
+ */
+export function prefersReducedMotion() {
+  return !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
  * Tile size and how many fit on the arc.
  *
  * A Saturday with nine photos cannot use a Tuesday's arc, so the shape degrades

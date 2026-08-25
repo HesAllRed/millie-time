@@ -117,6 +117,11 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 }
 .linkish{ display: block; }
 
+/* Back link on the left, where-am-I on the right. */
+.topbar{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.topbar .brandline{ color: var(--bone-mute); }
+.topbar .linkish{ color: var(--accent); }
+
 .range{
   font-family: var(--ui); font-weight: 800; font-size: 46px; line-height: .92;
   letter-spacing: -.045em; margin: 14px 0 0;
@@ -128,8 +133,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 #app[data-view="intake"] .brandline{ text-align: center; font-size: 12px; }
 #app[data-view="intake"] .range.wk{ font-size: 52px; }
 #app[data-view="intake"] .penline{ font-size: 32px; max-width: 18ch; margin-left: auto; margin-right: auto; }
-#app[data-view="intake"] .editchip{ font-size: 11px; padding: 9px 14px; }
-.range.wk.small{ font-size: 26px; }
+#app[data-view="intake"] .helper{ text-align: center; margin-top: 14px; }
 .range .wd{ color: var(--accent); }
 .range .arw{ color: var(--bone-mute); }
 
@@ -155,14 +159,6 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .btn.ghost{ background: transparent; color: var(--bone); box-shadow: 5px 5px 0 var(--edge); }
 .btn.ghost:active{ box-shadow: 3px 3px 0 var(--edge); }
 .btn.sm{ font-size: 14px; padding: 12px; box-shadow: 4px 4px 0 var(--edge); }
-
-.editchip{
-  display: inline-flex; align-items: center; gap: 7px; margin-top: 14px;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--bone-dim); border: 1px solid var(--edge); background: var(--surface);
-  padding: 8px 12px; border-radius: 99px;
-}
-.editchip b{ color: var(--accent); font-weight: 500; }
 
 /* --- tiles --------------------------------------------------------------- */
 
@@ -243,9 +239,31 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .deckbar-pad{ flex: 0 0 auto; width: 62px; }
 
 .dots{ display: flex; gap: 7px; justify-content: center; padding: 10px 0 2px; flex: 0 0 auto; }
-.dots i{ width: 7px; height: 7px; border-radius: 99px; background: var(--edge); display: block; transition: width .15s ease; }
-.dots i.on{ background: var(--accent); width: 22px; }
-.dots i.done{ background: var(--bone-mute); }
+/* Jump targets. The ::after is an invisible hit area — a 7px dot is far below
+   what a thumb can hit, but growing the button itself would push the deckbar
+   down and eat the space the keyboard already competes for. */
+.dots .dot{
+  position: relative; width: 7px; height: 7px; padding: 0; border: 0;
+  border-radius: 99px; background: var(--edge);
+  display: block; flex: 0 0 auto; transition: width .15s ease;
+}
+/* Horizontal reach stays under half the 7px gap, so neighbouring hit areas
+   never overlap — where they do, the later sibling wins and a tap near a dot's
+   right edge silently jumps to the next day. */
+.dots .dot::after{ content: ""; position: absolute; inset: -11px -3px; }
+.dots .dot.on{ background: var(--accent); width: 22px; }
+.dots .dot.done{ background: var(--bone-mute); }
+
+/* The shape of the week, on the entry screen. Same family as the deck's dots,
+   deliberately a different language: these are all one width and report what a
+   day holds, rather than tracking which card is in front of her. */
+.wkdots{ display: flex; gap: 8px; justify-content: center; margin-top: 18px; }
+.wkdots i{
+  width: 9px; height: 9px; border-radius: 99px; display: block;
+  border: 1.5px solid var(--edge); background: none;
+}
+.wkdots i.photos{ border-color: var(--bone-mute); background: var(--bone-mute); }
+.wkdots i.written{ border-color: var(--accent); background: var(--accent); }
 
 .deck{
   flex: 1 1 auto; min-height: 0;
@@ -313,33 +331,6 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 }
 .chip.on{ border-color: var(--magenta); color: #1A0A12; background: var(--magenta); }
 .sheet-x{ display: block; width: 100%; margin-top: 12px; background: none; border: 0; padding: 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--magenta); }
-
-/* --- week picker --------------------------------------------------------- */
-
-.pick{ margin-top: 10px; border: 2px solid var(--edge); border-radius: 3px; background: var(--surface); overflow: hidden; }
-.pick-row{
-  display: flex; justify-content: space-between; align-items: center; width: 100%;
-  padding: 13px 15px; border: 0; border-bottom: 1px solid var(--edge-soft); background: none;
-  font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--bone-dim);
-}
-.pick-row:last-child{ border-bottom: 0; }
-.pick-row b{ color: var(--bone); font-weight: 500; }
-.pick-row.on{ background: rgba(211,211,255,.1); color: var(--accent); }
-.pick-row.on b{ color: var(--accent); }
-.tick{ color: var(--accent); }
-
-.toggle{
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;
-  margin-top: 16px; border: 2px solid var(--edge); border-radius: 3px;
-  background: var(--surface); padding: 13px 15px; text-align: left;
-}
-.toggle.on{ border-color: var(--accent); background: rgba(211,211,255,.08); }
-.toggle .lbl{ font-size: 14px; font-weight: 700; }
-.toggle .sub{ font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--bone-dim); margin-top: 3px; }
-.toggle .sw2{ width: 42px; height: 24px; border-radius: 99px; background: var(--edge); position: relative; flex: 0 0 auto; transition: background .15s; }
-.toggle .sw2::after{ content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 99px; background: var(--bone-mute); transition: transform .15s, background .15s; }
-.toggle.on .sw2{ background: var(--accent); }
-.toggle.on .sw2::after{ transform: translateX(18px); background: #141024; }
 
 /* --- print --------------------------------------------------------------- */
 
@@ -418,7 +409,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce){
   .orb.pulse{ animation: none; opacity: .9; }
   .orb span{ animation: none; }
-  .cres, .cres-wrap, .dots i, .toggle .sw2, .toggle .sw2::after{ transition: none; }
+  .cres, .cres-wrap, .dots .dot{ transition: none; }
   ::view-transition-old(root), ::view-transition-new(root){ animation: none; }
   #app.leaving{ opacity: 1; transform: none; filter: none; transition: none; }
   #app.entering{ animation: none; }

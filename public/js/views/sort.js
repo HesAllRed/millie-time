@@ -31,7 +31,13 @@ export function renderSort(root, { onDone, onAddMore }) {
   const unsorted = state.items.filter((i) => !i.day);
   const onTap = (item) => { selectedId = selectedId === item.id ? null : item.id; set({}); };
 
-  root.append(h("p", { class: "brandline", text: "Step 2 of 3 · Sort" }));
+  // Back to the entry screen. Captions and picked items are held in the store,
+  // so stepping back here loses nothing — it just isn't a one-way wizard.
+  root.append(h("div", { class: "topbar" },
+    h("button", { type: "button", class: "brandline linkish", text: `← ${cfg.name}`,
+      onclick: () => set({ view: "intake" }) }),
+    h("p", { class: "brandline", text: "Step 2 of 3 · Sort" })
+  ));
 
   const scroller = h("div", { class: "scroll" });
 

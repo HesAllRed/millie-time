@@ -2,7 +2,7 @@
 // and the share orchestration.
 
 import cfg from "./config.js";
-import { h, clear, orb } from "./ui.js";
+import { h, clear, orb, prefersReducedMotion } from "./ui.js";
 import {
   state, set, subscribe, days, refreshWindow, unsortedCount,
   loadSession, saveSession, writeSession, clearAll,
@@ -11,7 +11,7 @@ import { composeText, orderedItems } from "./compose.js";
 import { ingest, assignDays, stopVideo, renameForOrder, stampTime } from "./media.js";
 import { renderPrint } from "./print.js";
 import { copyText, runShareLadder, shareWords, sharePhotos } from "./share.js";
-import { renderIntake, renderWindow } from "./views/intake.js";
+import { renderIntake } from "./views/intake.js";
 import { renderSort, resetSort } from "./views/sort.js";
 import { renderDeck, resetDeck } from "./views/deck.js";
 import { renderStepper, renderSent, renderFallback } from "./views/send.js";
@@ -218,7 +218,6 @@ function paint() {
   if (state.busy) { renderBusy(app); return; }
 
   switch (state.view) {
-    case "window":   renderWindow(app); break;
     case "sort":     renderSort(app, { onDone: () => { resetDeck(); set({ view: "deck", deckIndex: 0 }); schedulePrint(); }, onAddMore: openPicker }); break;
     case "deck":     renderDeck(app, { onShare: doShare }); break;
     case "send":     renderStepper(app, { onWords: doShareWords, onPhotos: doSharePhotos }); break;
@@ -230,11 +229,6 @@ function paint() {
 
 // Animate only when the screen actually changes. Selecting a tile or editing a
 // day re-renders too, and smearing on every one of those would be seasickness.
-// Read live rather than cached, so turning Reduce Motion on in iOS Settings
-// takes effect without relaunching the app.
-const prefersReducedMotion = () =>
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
 let lastScreen = null;
 let midTransition = false;
 

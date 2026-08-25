@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  composeText, activeDays, totalBytes, formatBytes, itemsForDay, orderedItems, messageDays,
+  composeText, activeDays, dayStatus, totalBytes, formatBytes, itemsForDay, orderedItems, messageDays,
 } from "../public/js/compose.js";
 import { renameForOrder, stampTime } from "../public/js/media.js";
 import { windowDays } from "../public/js/dates.js";
@@ -50,6 +50,27 @@ test("activeDays includes days with photos or with captions, and nothing else", 
 
 test("activeDays ignores a caption that is only whitespace", () => {
   assert.deepEqual(activeDays(week, { "2026-08-19": "  " }, []), []);
+});
+
+// The entry screen's row of dots. Writing outranks photos: a day she has written
+// about reads as done whether or not anything is attached to it.
+test("dayStatus reports what a day holds", () => {
+  const items = [{ day: "2026-08-16" }, { day: "2026-08-19" }];
+  const captions = { "2026-08-19": "both", "2026-08-20": "words only" };
+
+  assert.equal(dayStatus("2026-08-16", captions, items), "photos");
+  assert.equal(dayStatus("2026-08-20", captions, items), "written");
+  assert.equal(dayStatus("2026-08-19", captions, items), "written");
+  assert.equal(dayStatus("2026-08-18", captions, items), "empty");
+});
+
+test("dayStatus ignores a caption that is only whitespace", () => {
+  assert.equal(dayStatus("2026-08-19", { "2026-08-19": "  " }, []), "empty");
+  assert.equal(dayStatus("2026-08-19", { "2026-08-19": "  " }, [{ day: "2026-08-19" }]), "photos");
+});
+
+test("dayStatus ignores undated items, which belong to no day", () => {
+  assert.equal(dayStatus("2026-08-19", {}, [{ day: null }]), "empty");
 });
 
 const at = (iso, hh, mm = 0) => {

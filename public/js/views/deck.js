@@ -3,7 +3,7 @@
 // card so the deck simply ends in the thing she came to do.
 
 import cfg from "../config.js";
-import { h, clear, crescent, tile } from "../ui.js";
+import { h, clear, crescent, tile, prefersReducedMotion } from "../ui.js";
 import { state, set, days, deckDays, saveSession, unsortedCount } from "../state.js";
 import { dayLabel, rangeLabel } from "../dates.js";
 import { totalBytes, formatBytes, itemsForDay } from "../compose.js";
@@ -13,6 +13,13 @@ let gridDay = null;      // ISO day whose full grid is open, or null
 let gridPick = null;     // item id selected inside that grid
 
 export function resetDeck() { gridDay = null; gridPick = null; }
+
+// Kept in one place because the scroll handler rewrites these on every swipe,
+// and it used to do it by clobbering className outright — which would now strip
+// the base class off a dot and leave it unstyled.
+function dotClass(i, current) {
+  return `dot${i === current ? " on" : i < current ? " done" : ""}`;
+}
 
 function dayCard(iso, onShare) {
   const mine = itemsForDay(state.items, iso);
@@ -220,9 +227,22 @@ export function renderDeck(root, { onShare }) {
     return;
   }
 
+  // One dot per day, plus one for the Send card. They double as jump targets:
+  // on a stretched week, reaching Friday by swiping is five gestures.
   const dots = h("div", { class: "dots" });
   for (let i = 0; i <= list.length; i++) {
-    dots.append(h("i", { class: i === state.deckIndex ? "on" : (i < state.deckIndex ? "done" : "") }));
+    dots.append(h("button", {
+      type: "button",
+      class: dotClass(i, state.deckIndex),
+      "aria-label": i === list.length ? "Go to Send" : `Go to ${dayLabel(list[i]).weekday}`,
+      // Only move the scroller. Its scroll handler owns everything else —
+      // the index, stopping a live video, repainting these dots, and
+      // refreshing the Send card on arrival.
+      onclick: () => deck.scrollTo({
+        left: i * deck.clientWidth,
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+      }),
+    }));
   }
   // Back to sorting, where "Add more photos" lives — captions are already
   // saved, so nothing she has written is at risk.
@@ -249,9 +269,7 @@ export function renderDeck(root, { onShare }) {
       if (idx === state.deckIndex) return;
       state.deckIndex = idx;
       stopVideo();                                   // never leave a decoder running
-      [...dots.children].forEach((d, i) => {
-        d.className = i === idx ? "on" : (i < idx ? "done" : "");
-      });
+      [...dots.children].forEach((d, i) => { d.className = dotClass(i, idx); });
       if (idx === list.length) fillSend(send, onShare);   // show what she just wrote
     });
   }, { passive: true });

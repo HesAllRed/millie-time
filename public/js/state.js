@@ -16,7 +16,7 @@ const opening = resolveWindow({
 });
 
 export const state = {
-  view: "intake",          // intake | window | sort | deck | send | sent | fallback | debug
+  view: "intake",          // intake | sort | deck | send | sent | fallback | debug
   items: [],               // { id, file, kind, url, takenAt, day, poster }
   captions: {},            // ISO day -> text
   startIso: opening.startIso,
@@ -66,7 +66,9 @@ export function unsortedCount() {
  */
 export function refreshWindow(base = null) {
   if (!state.autoWindow) {
-    // She pinned a start day; honour it exactly.
+    // A pinned window. Nothing in the UI sets this any more — the start-day
+    // picker is gone — so it arrives only from `weekEndsOn: "today"` in config,
+    // or from a session saved back when the picker existed. Honour it exactly.
     state.endIso = addDays(state.startIso, cfg.weekLength - 1);
     return;
   }
