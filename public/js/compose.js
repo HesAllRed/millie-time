@@ -47,6 +47,20 @@ export function activeDays(days, captions, items) {
   return days.filter((iso) => withItems.has(iso) || (captions[iso] || "").trim());
 }
 
+/**
+ * What a day has in it, for the row of dots on the entry screen.
+ *
+ * Writing outranks photos: a day she has written about is done, whether or not
+ * anything is attached to it. Blank-but-whitespace counts as nothing, matching
+ * `activeDays` — otherwise a stray space would light a dot for an empty day.
+ *
+ * @returns {"written" | "photos" | "empty"}
+ */
+export function dayStatus(iso, captions, items) {
+  if ((captions?.[iso] || "").trim()) return "written";
+  return items.some((i) => i.day === iso) ? "photos" : "empty";
+}
+
 /** One day's items, oldest first. Array.sort is stable, so equal (or missing)
  *  capture times keep the order iOS handed them to us in. */
 export function itemsForDay(items, iso) {
