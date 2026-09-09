@@ -8,9 +8,10 @@
 import cfg from "../config.js";
 import { h, clear } from "../ui.js";
 import { state, set, days, unsortedCount } from "../state.js";
-import { copyText } from "../share.js";
-import { formatBytes, orderedItems } from "../compose.js";
-import { renameForOrder } from "../media.js";
+import { copyText, runShareLadder } from "../share.js";
+import { buildProbe } from "../probe.js";
+import { formatBytes, orderedItems, captureSequence } from "../compose.js";
+import { orderedName } from "../media.js";
 
 /**
  * Exactly what the share would send, in order. If photos still arrive scrambled
@@ -18,11 +19,54 @@ import { renameForOrder } from "../media.js";
  * reordered them — which is the difference between our bug and Apple's.
  */
 function shareManifest() {
-  const base = 1000000000000;   // fixed, so the listing is stable to read
-  return orderedItems(state.items, days()).map((item, i) => {
-    const f = renameForOrder(item.file, i + 1, base);
-    return { pos: i + 1, name: f.name, day: item.day || "unsorted", stamp: f.lastModified };
-  });
+  const week = days();
+  const ordered = orderedItems(state.items, week);
+  const stamps = captureSequence(ordered, week[week.length - 1]);
+  return ordered.map((item, i) => ({
+    pos: i + 1,
+    name: orderedName(item.file, i + 1, ordered.length),
+    day: item.day || "unsorted",
+    // "ours" means the file carried no capture date and we wrote this one in,
+    // so that an app sorting by date taken agrees with the order we sent.
+    taken: stamps[i],
+    dateSource: item.kind === "video" ? "video" : item.hasExifDate ? "exif" : item.jpeg ? "ours" : "none",
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// The order probe. Built ahead of the tap, like the print — six numbered photos
+// whose filename, capture date and timestamp each say a different order, so
+// what comes back in the thread names the rule Messages actually uses. The
+// reasoning is in probe.js.
+// ---------------------------------------------------------------------------
+
+let probe = null;
+let probeState = "idle";       // idle | building | ready | failed
+let probeResult = null;
+
+function ensureProbe() {
+  if (probeState !== "idle") return;
+  probeState = "building";
+  buildProbe()
+    .then((built) => {
+      probe = built;
+      probeState = "ready";
+      record("probe", `${built.files.length} files ready`);
+      set({});
+    })
+    .catch((e) => { probeState = "failed"; record("probe", e); set({}); });
+}
+
+function sendProbe() {
+  if (!probe) return;
+  copyText(probe.key);                     // the answer key, on her clipboard
+  runShareLadder({ files: probe.files, text: "Millie Time order test — these should read 1 2 3 4 5 6." })
+    .then((res) => {
+      probeResult = res.outcome === "sent" ? `sent (rung ${res.rung})` : res.outcome;
+      record("probe", probeResult);
+      set({});
+    })
+    .catch((e) => { probeResult = `failed: ${e.message}`; record("probe", e); set({}); });
 }
 
 export const log = [];
@@ -89,7 +133,7 @@ function diagnosticsText() {
   lines.push("");
   lines.push("share order:");
   for (const row of shareManifest()) {
-    lines.push(`  ${row.pos} ${row.name} ${row.day} t=${row.stamp}`);
+    lines.push(`  ${row.pos} ${row.name} ${row.day} taken=${row.taken.toISOString()} (${row.dateSource})`);
   }
   lines.push("");
   lines.push("log:");
@@ -99,6 +143,7 @@ function diagnosticsText() {
 
 export function renderDebug(root) {
   clear(root);
+  ensureProbe();
 
   const table = h("div", { class: "dbg" });
   for (const [k, v] of probes()) {
@@ -139,18 +184,51 @@ export function renderDebug(root) {
   for (const row of manifest) {
     order.append(h("div", { class: "dbg-row" },
       h("span", { text: `${row.pos}. ${row.name}` }),
-      h("b", { class: row.day === "unsorted" ? "bad" : "", text: row.day })));
+      h("b", { class: row.dateSource === "none" ? "bad" : "", text: `${row.day} · ${row.dateSource}` })));
   }
+
+  const probeBox = h("div", { class: "dbg" });
+  probeBox.append(h("div", { class: "dbg-row" },
+    h("span", { text: "six numbered photos" }),
+    h("b", { class: probeState === "failed" ? "bad" : "", text: probeState })));
+  if (probeResult) {
+    probeBox.append(h("div", { class: "dbg-row" },
+      h("span", { text: "last attempt" }), h("b", { text: probeResult })));
+  }
+  probeBox.append(h("button", {
+    class: "btn ghost sm", type: "button", style: "margin:10px 0 4px",
+    text: probeState === "ready" ? "Send the order test" : "Getting it ready…",
+    disabled: probeState !== "ready",
+    onclick: sendProbe,
+  }));
+  probeBox.append(h("p", { class: "helper", style: "text-align:left",
+    text: "Send them to yourself, then read the big numbers in the order they land. " +
+          "1 2 3 4 5 6 means the order we send is kept · 6 5 4 3 2 1 means it sorts by filename · " +
+          "4 5 6 1 2 3 means capture date · 2 1 4 3 6 5 means file timestamp. " +
+          "The answer key is copied to your clipboard when you tap." }));
 
   root.append(
     h("p", { class: "brandline", text: `Debug · v${cfg.version}` }),
     h("div", { class: "scroll" },
       h("p", { class: "dbg-h", text: "The week" }), week,
       h("p", { class: "dbg-h", text: "Share order" }), order,
+      h("p", { class: "dbg-h", text: "Order test" }), probeBox,
       h("p", { class: "dbg-h", text: "Capabilities" }), table,
       h("p", { class: "dbg-h", text: "Items" }), items,
       h("p", { class: "dbg-h", text: "Log" }),
-      h("pre", { class: "dbg-log", text: log.join("\n") || "(empty)" })
+      h("pre", { class: "dbg-log", text: log.join("\n") || "(empty)" }),
+      // The clipboard is not always reachable — a locked-down browser, a copy
+      // that reports success and lands nothing, a paste that arrives empty.
+      // The same text is always here to be selected by hand or screenshotted,
+      // because a diagnostics screen you cannot get the diagnostics off is not
+      // one.
+      h("p", { class: "dbg-h", text: "All of it, to select by hand" }),
+      h("textarea", {
+        class: "dbg-log", readonly: "", rows: "10", spellcheck: "false",
+        style: "width:100%;resize:vertical",
+        "aria-label": "Diagnostics text",
+        onfocus: (e) => e.target.select(),
+      }, diagnosticsText())
     ),
     h("button", {
       class: "btn", type: "button", text: "Copy diagnostics",

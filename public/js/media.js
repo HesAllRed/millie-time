@@ -1,6 +1,6 @@
 // File intake, capture dates, video posters, and the one-video-at-a-time rule.
 
-import { fromJpeg, fromMp4, fromLastModified } from "./exif.js";
+import { fromJpeg, fromMp4, fromLastModified, exifApp1, isJpeg } from "./exif.js";
 import { isoDay } from "./dates.js";
 
 const HEAD_BYTES  = 256 * 1024;        // plenty for a JPEG's EXIF block
@@ -117,11 +117,18 @@ export async function ingest(fileList, onProgress) {
     let takenAt = null;
     let url = null;
     let poster = null;
+    // Two separate facts, and the share needs both: whether we can splice a
+    // capture date into these bytes, and whether one is already in there.
+    let jpeg = false;
+    let hasExifDate = false;
 
     try {
       if (kind === "photo") {
         url = URL.createObjectURL(file);
-        takenAt = fromJpeg(await file.slice(0, HEAD_BYTES).arrayBuffer());
+        const head = await file.slice(0, HEAD_BYTES).arrayBuffer();
+        jpeg = isJpeg(head);
+        takenAt = fromJpeg(head);
+        hasExifDate = takenAt !== null;
       } else {
         takenAt = fromMp4(await file.slice(0, MP4_HEAD).arrayBuffer());
         if (!takenAt && file.size > MP4_HEAD) {
@@ -140,6 +147,7 @@ export async function ingest(fileList, onProgress) {
     out.push({
       id: `i${Date.now().toString(36)}${(seq++).toString(36)}`,
       file, kind, url, poster, takenAt,
+      jpeg, hasExifDate,
       day: null,
     });
   }
@@ -155,27 +163,61 @@ export function assignDays(items, windowSet) {
   }
 }
 
+// A file iOS handed over without an extension still needs one, or the receiving
+// app has nothing to go on but the bytes.
+const EXT_BY_TYPE = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/heic": ".heic",
+  "image/webp": ".webp",
+  "video/quicktime": ".mov",
+  "video/mp4": ".mp4",
+};
+
+function extensionFor(file) {
+  const dot = file.name.lastIndexOf(".");
+  if (dot > 0 && dot < file.name.length - 1) return file.name.slice(dot);
+  return EXT_BY_TYPE[file.type] || (file.type.startsWith("video") ? ".mp4" : ".jpg");
+}
+
 /**
  * Give a file a zero-padded, ordered name: 01.jpg, 02.jpg, …
  *
- * Some share targets — Mail, Files, anything that treats the payload as a set
- * of documents — sort attachments by filename. Those get the right order for
- * free. iMessage sorts by nothing we can reach, so this doesn't help there;
- * it costs one Blob reference per file and can only improve matters.
- *
- * Set `renumberOnShare: false` in config.js if this ever looks like it's
- * costing memory on a heavy week.
+ * The width follows the count, so a hundred-photo week doesn't sort 100 between
+ * 10 and 11. The print keeps its own "00-" name, which still sorts first.
  */
-export function renameForOrder(file, position, baseTime = Date.now()) {
-  const dot = file.name.lastIndexOf(".");
-  const ext = dot > 0 ? file.name.slice(dot) : "";
-  const name = `${String(position).padStart(2, "0")}${ext}`;
-  // Timestamp as well as name. Messages is reported to sort attachments by
-  // both, and every file arrived carrying Safari's *export* time — near
-  // identical across the batch and unrelated to the week. Now they ascend in
-  // the order we intend. The photo's real capture date lives in its EXIF,
-  // which is untouched, so Photos still sorts it correctly.
-  return stampTime(file, baseTime + position * 1000, name);
+export function orderedName(file, position, count = 99) {
+  const width = Math.max(2, String(count).length);
+  return `${String(position).padStart(width, "0")}${extensionFor(file)}`;
+}
+
+/**
+ * Build the copy of a file that actually gets shared.
+ *
+ * Three separate things a receiving app might sort by, all set to say the same
+ * thing (see compose.js, "Making every ordering rule agree"):
+ *
+ *   name         01, 02, 03 …    for anything that sorts attachments by filename
+ *   lastModified ascending       for anything that sorts by file date
+ *   capture date ascending       for anything that sorts by "date taken"
+ *
+ * `captureDate` is only ever passed for a JPEG whose own EXIF says nothing —
+ * a real capture date is the truth and is never overwritten, and it already
+ * agrees with our order because it is what we sorted on.
+ *
+ * Every part here is a Blob slice, so nothing is read into memory: a
+ * twenty-photo week costs twenty File objects, not sixty megabytes.
+ */
+export function prepareForShare(file, { position, count, time, captureDate = null }) {
+  const name = orderedName(file, position, count);
+  try {
+    const parts = captureDate
+      ? [file.slice(0, 2), exifApp1(captureDate), file.slice(2)]
+      : [file];
+    return new File(parts, name, { type: file.type, lastModified: time });
+  } catch {
+    return file;                       // never let this cost us the share
+  }
 }
 
 /** Rebuild a File with a new timestamp, and optionally a new name. */

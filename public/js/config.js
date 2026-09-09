@@ -35,11 +35,12 @@ export default {
   // half-finished week is treated as a finished one and she starts fresh.
   resumeWithinHours: 48,
 
-  // Renumber files as 01, 02, … before sharing, so targets that sort
-  // attachments by name get the week in order. Set false if it ever looks
-  // like it's costing memory on a heavy week.
+  // Prepare files for order before sharing: renumber them 01, 02, …, make the
+  // file timestamps ascend, and write a capture date into any photo that has
+  // none. A receiving app might sort by any of those three, so they are all set
+  // to say the same thing. Set false to hand the files over untouched.
   renumberOnShare: true,
 
   // Bumped on release; shown in the footer and on #debug.
-  version: "1.0.5",
+  version: "1.0.6",
 };
