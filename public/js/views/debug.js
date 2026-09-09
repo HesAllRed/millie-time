@@ -216,7 +216,19 @@ export function renderDebug(root) {
       h("p", { class: "dbg-h", text: "Capabilities" }), table,
       h("p", { class: "dbg-h", text: "Items" }), items,
       h("p", { class: "dbg-h", text: "Log" }),
-      h("pre", { class: "dbg-log", text: log.join("\n") || "(empty)" })
+      h("pre", { class: "dbg-log", text: log.join("\n") || "(empty)" }),
+      // The clipboard is not always reachable — a locked-down browser, a copy
+      // that reports success and lands nothing, a paste that arrives empty.
+      // The same text is always here to be selected by hand or screenshotted,
+      // because a diagnostics screen you cannot get the diagnostics off is not
+      // one.
+      h("p", { class: "dbg-h", text: "All of it, to select by hand" }),
+      h("textarea", {
+        class: "dbg-log", readonly: "", rows: "10", spellcheck: "false",
+        style: "width:100%;resize:vertical",
+        "aria-label": "Diagnostics text",
+        onfocus: (e) => e.target.select(),
+      }, diagnosticsText())
     ),
     h("button", {
       class: "btn", type: "button", text: "Copy diagnostics",
