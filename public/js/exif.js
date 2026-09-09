@@ -166,3 +166,82 @@ export function fromLastModified(ms, now = Date.now()) {
   if (age > 20 * 365 * 24 * 3600 * 1000) return null;
   return new Date(ms);
 }
+
+// ---------------------------------------------------------------------------
+// The writer.
+//
+// Reading capture dates is only half of it. A photo that arrives with no EXIF
+// date — a screenshot, a saved image, anything iOS stripped — is invisible to
+// every receiving app that sorts by "date taken", so it lands wherever that app
+// feels like putting it. Writing one in means the order we send and the order a
+// date-sorting app computes are the same list. See media.js `withCaptureDate`.
+// ---------------------------------------------------------------------------
+
+const pad2 = (n) => String(n).padStart(2, "0");
+
+/** Date -> "2026:08:21 14:03:57", the only shape EXIF understands. */
+export function exifDateString(d) {
+  return `${d.getFullYear()}:${pad2(d.getMonth() + 1)}:${pad2(d.getDate())} ` +
+         `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+/**
+ * A complete APP1 segment carrying exactly one tag: DateTimeOriginal.
+ *
+ * Little-endian, and the layout is spelled out rather than computed because
+ * every offset here is relative to the TIFF header and that is exactly the
+ * kind of arithmetic worth being able to check by eye:
+ *
+ *    0  TIFF header ............ 8 bytes
+ *    8  IFD0, one entry ....... 18 bytes  -> points at 26
+ *   26  Exif SubIFD, one entry  18 bytes  -> points at 44
+ *   44  "YYYY:MM:DD HH:MM:SS\0" 20 bytes
+ *
+ * @param {Date} when
+ * @returns {Uint8Array} ready to splice in immediately after SOI
+ */
+export function exifApp1(when) {
+  const SUB_IFD_AT = 26;
+  const STRING_AT = 44;
+  const TIFF_BYTES = 64;
+
+  const out = new Uint8Array(10 + TIFF_BYTES);
+  const view = new DataView(out.buffer);
+
+  view.setUint16(0, 0xffe1);                      // APP1
+  view.setUint16(2, 8 + TIFF_BYTES);              // length, including itself
+  out.set([0x45, 0x78, 0x69, 0x66, 0, 0], 4);     // "Exif\0\0"
+
+  const tiff = 10;
+  out.set([0x49, 0x49], tiff);                    // little-endian
+  view.setUint16(tiff + 2, 42, true);
+  view.setUint32(tiff + 4, 8, true);              // IFD0 starts at 8
+
+  view.setUint16(tiff + 8, 1, true);              // IFD0: one entry
+  view.setUint16(tiff + 10, TAG_EXIF_IFD_POINTER, true);
+  view.setUint16(tiff + 12, 4, true);             // LONG
+  view.setUint32(tiff + 14, 1, true);
+  view.setUint32(tiff + 18, SUB_IFD_AT, true);
+  view.setUint32(tiff + 22, 0, true);             // no IFD1
+
+  view.setUint16(tiff + SUB_IFD_AT, 1, true);     // SubIFD: one entry
+  view.setUint16(tiff + SUB_IFD_AT + 2, TAG_DATETIME_ORIGINAL, true);
+  view.setUint16(tiff + SUB_IFD_AT + 4, 2, true); // ASCII
+  view.setUint32(tiff + SUB_IFD_AT + 6, 20, true);
+  view.setUint32(tiff + SUB_IFD_AT + 10, STRING_AT, true);
+  view.setUint32(tiff + SUB_IFD_AT + 14, 0, true);
+
+  const text = exifDateString(when);
+  for (let i = 0; i < text.length; i++) out[tiff + STRING_AT + i] = text.charCodeAt(i);
+  return out;
+}
+
+/** Does this JPEG already say when it was taken? */
+export function hasCaptureDate(buffer) {
+  return fromJpeg(buffer) !== null;
+}
+
+/** Cheap magic-number check — a splice must never be attempted on a non-JPEG. */
+export function isJpeg(buffer) {
+  return buffer.byteLength >= 2 && new DataView(buffer).getUint16(0) === 0xffd8;
+}

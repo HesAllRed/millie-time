@@ -164,6 +164,45 @@ must be a first-class, fast interaction — not a rarely-used override.
 **Consequence:** photos we can't date go into an **Unsorted tray**, not a wrong day.
 Auto-assignment is framed in the UI as a *suggestion*, and the app never blocks on it.
 
+### 1.3b Sending them in order — make every rule agree
+
+Photos kept arriving out of order in Messages, so the assumption to drop was that
+this is one problem. It is two, and only one of them is ours.
+
+**Ours** was the sort. An item with no capture date was sorted as though it were
+taken at the epoch, so a screenshot she had placed on Tuesday by hand led the day,
+ahead of the photos actually taken that morning — in the deck and in the share
+alike. Undated items now sort **last** within whatever they belong to; they have
+no claim to a position, so they take the one that can't displace anything.
+
+**Apple's** is that we hand `navigator.share()` an array and the receiving app
+arranges it however it likes. There is no metadata tag that overrides that, and
+guessing which rule Messages uses is not a plan. So the payload stops arguing:
+every signal a receiving app might sort by is set to say the same thing.
+
+| Signal | How |
+|---|---|
+| Array order | day by day, oldest first, strays last |
+| Filename | `01`, `02`, … padded to the width of the count, print stays `00-` |
+| File timestamp | ascending, one second apart, overriding Safari's export stamp |
+| Capture date | already in agreement — it is what we sorted on — *except* for photos carrying no EXIF date, where we write one in that lands them exactly where we put them |
+
+That last row is the new part. A real capture date is the truth, the recipient's
+Photos app files by it, and it is never overwritten. A photo that has none is
+invisible to any app sorting by "date taken", which is exactly how one ends up
+somewhere arbitrary. The synthetic date goes in as a spliced APP1 segment built
+from `Blob` slices, so a twenty-photo week costs twenty `File` objects rather
+than sixty megabytes, and it is prepared ahead of the tap like the print is.
+
+**Testing it.** Everything up to `navigator.share()` is now covered end-to-end in
+a real browser (`test/order.test.js`, driving Chromium over the DevTools protocol
+with no dependencies). Everything after it is on the far side of the OS, so
+`#debug` carries an **order test**: six numbered photos whose filename, capture
+date and file timestamp each describe a different order. Whichever order they
+land in names the rule that app actually obeys, in one send. That answer decides
+whether anything further is worth building — per-day sends, burned-in numbering,
+or nothing at all.
+
 ### 1.4 iOS PWA behavior
 
 - Home-screen PWAs are **exempt from the 7-day script-writable storage cap** that

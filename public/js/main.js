@@ -7,8 +7,8 @@ import {
   state, set, subscribe, days, refreshWindow, unsortedCount,
   loadSession, saveSession, writeSession, clearAll,
 } from "./state.js";
-import { composeText, orderedItems } from "./compose.js";
-import { ingest, assignDays, stopVideo, renameForOrder, stampTime } from "./media.js";
+import { composeText, orderedItems, captureSequence } from "./compose.js";
+import { ingest, assignDays, stopVideo, prepareForShare, stampTime } from "./media.js";
 import { renderPrint } from "./print.js";
 import { copyText, runShareLadder, shareWords, sharePhotos } from "./share.js";
 import { renderIntake } from "./views/intake.js";
@@ -139,18 +139,33 @@ function payload() {
   const week = days();
   const text = composeText(week, state.captions, cfg);
   const ordered = orderedItems(state.items, week);
+  const stamps = captureSequence(ordered, week[week.length - 1]);
 
   // One base for the whole batch, so names and timestamps ascend together.
   const base = Date.now() - (ordered.length + 2) * 1000;
-  const files = ordered.map((item, i) =>
-    cfg.renumberOnShare ? renameForOrder(item.file, i + 1, base) : item.file);
+  let invented = 0;
+
+  const files = ordered.map((item, i) => {
+    if (!cfg.renumberOnShare) return item.file;
+    // Only ever for a JPEG that doesn't already say when it was taken. A real
+    // capture date is the truth and stays untouched.
+    const captureDate = item.jpeg && !item.hasExifDate ? stamps[i] : null;
+    if (captureDate) invented++;
+    return prepareForShare(item.file, {
+      position: i + 1,
+      count: ordered.length,
+      time: base + (i + 1) * 1000,
+      captureDate,
+    });
+  });
 
   if (printFile) {
     // The print keeps its descriptive "00-" name but takes the earliest stamp.
     files.unshift(cfg.renumberOnShare ? stampTime(printFile, base) : printFile);
   }
 
-  record("payload", files.map((f, i) => `${i}:${f.name}@${f.lastModified}`).join(" "));
+  record("payload", `${files.length} files, ${invented} dated by us`);
+  record("order", files.map((f, i) => `${i}:${f.name}`).join(" "));
   return { text, files };
 }
 

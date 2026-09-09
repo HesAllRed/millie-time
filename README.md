@@ -14,6 +14,18 @@ Then <http://localhost:5173>. Add `#debug` for the on-device diagnostics screen.
 npm test
 ```
 
+That includes an end-to-end pass over the share order: it drives real Chromium
+over the DevTools protocol, picks generated photos into the real file input, and
+checks the exact array handed to `navigator.share()`. No dependencies — it uses
+whatever Chrome or Edge is already installed, and skips itself if there is none.
+Set `CHROME_PATH` to point it somewhere specific.
+
+What it can't cover is what Messages does with the payload afterwards. That is on
+the far side of the OS, so `#debug` has an **order test**: it sends six numbered
+photos whose filename, capture date and file timestamp each say a *different*
+order. Whichever order they land in names the rule that receiving app actually
+uses. See `public/js/probe.js`.
+
 ## Layout
 
 ```
@@ -26,8 +38,10 @@ public/                    ← everything Cloudflare serves
     state.js               one store; views read, never mutate
     dates.js  exif.js  compose.js     pure, tested
     media.js  print.js  share.js
+    probe.js               the on-device order test
     ui.js
     views/                 intake · sort · deck · send · debug
-test/                      node:test
+test/                      node:test, including the end-to-end share order
 tools/                     dev server, icon generator
+  harness/                 drives Chromium over CDP, no dependencies
 ```

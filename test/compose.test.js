@@ -2,9 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   composeText, activeDays, dayStatus, totalBytes, formatBytes, itemsForDay, orderedItems, messageDays,
+  captureSequence,
 } from "../public/js/compose.js";
-import { renameForOrder, stampTime } from "../public/js/media.js";
-import { windowDays } from "../public/js/dates.js";
+import { prepareForShare, orderedName, stampTime } from "../public/js/media.js";
+import { windowDays, isoDay } from "../public/js/dates.js";
+import { fromJpeg } from "../public/js/exif.js";
 
 const cfg = { printTitle: "This week", name: "Millie Time" };
 const week = windowDays("2026-08-21", 8);
@@ -108,6 +110,30 @@ test("orderedItems reads the week day by day, oldest first", () => {
   );
 });
 
+test("an undated item placed on a day sorts to the END of that day", () => {
+  // The screenshot she moved onto Tuesday by hand has no capture time. Treating
+  // that as zero put it in front of the photos actually taken that morning, and
+  // did it in the deck and in the share alike.
+  const items = [
+    { id: "screenshot", day: "2026-08-16", takenAt: null },
+    { id: "morning",    day: "2026-08-16", takenAt: at("2026-08-16", 9) },
+    { id: "evening",    day: "2026-08-16", takenAt: at("2026-08-16", 20) },
+  ];
+  assert.deepEqual(itemsForDay(items, "2026-08-16").map((i) => i.id),
+    ["morning", "evening", "screenshot"]);
+  assert.deepEqual(orderedItems(items, week).map((i) => i.id),
+    ["morning", "evening", "screenshot"]);
+});
+
+test("several undated items on one day keep the order she picked them in", () => {
+  const items = [
+    { id: "second", day: "2026-08-16", takenAt: null },
+    { id: "third",  day: "2026-08-16", takenAt: null },
+    { id: "first",  day: "2026-08-16", takenAt: at("2026-08-16", 9) },
+  ];
+  assert.deepEqual(orderedItems(items, week).map((i) => i.id), ["first", "second", "third"]);
+});
+
 test("orderedItems puts undated items last rather than first", () => {
   const items = [
     { id: "nodate", day: null, takenAt: null },
@@ -116,14 +142,25 @@ test("orderedItems puts undated items last rather than first", () => {
   assert.deepEqual(orderedItems(items, week).map((i) => i.id), ["dated", "nodate"]);
 });
 
-test("renameForOrder zero-pads and keeps the extension and type", () => {
-  const file = new File(["x"], "IMG_4821.HEIC", { type: "image/heic" });
-  const renamed = renameForOrder(file, 7);
-  assert.equal(renamed.name, "07.HEIC");
-  assert.equal(renamed.type, "image/heic");
+test("orderedName zero-pads and keeps the extension", () => {
+  assert.equal(orderedName(new File(["x"], "IMG_4821.HEIC", { type: "image/heic" }), 7), "07.HEIC");
+  assert.equal(orderedName(new File(["x"], "clip.mov", { type: "video/quicktime" }), 12), "12.mov");
+});
 
-  assert.equal(renameForOrder(new File(["x"], "clip.mov", { type: "video/quicktime" }), 12).name, "12.mov");
-  assert.equal(renameForOrder(new File(["x"], "noext", { type: "" }), 3).name, "03");
+test("orderedName invents an extension when iOS hands over a bare name", () => {
+  // A name with nothing after the dot is no better than no dot at all, and a
+  // receiving app with no extension to go on treats the photo as a document.
+  assert.equal(orderedName(new File(["x"], "image", { type: "image/jpeg" }), 3), "03.jpg");
+  assert.equal(orderedName(new File(["x"], "trailing.", { type: "image/png" }), 3), "03.png");
+  assert.equal(orderedName(new File(["x"], "clip", { type: "video/quicktime" }), 3), "03.mov");
+  assert.equal(orderedName(new File(["x"], "mystery", { type: "" }), 3), "03.jpg");
+});
+
+test("orderedName widens the padding so 100 cannot sort between 10 and 11", () => {
+  const file = new File(["x"], "a.jpg", { type: "image/jpeg" });
+  const names = [9, 10, 100].map((n) => orderedName(file, n, 120));
+  assert.deepEqual(names, ["009.jpg", "010.jpg", "100.jpg"]);
+  assert.deepEqual([...names].sort(), names, "and they still sort into send order");
 });
 
 test("totalBytes and formatBytes", () => {
@@ -163,24 +200,83 @@ test("composeText widens its header range to cover an orphan day", () => {
 
 // --- share ordering --------------------------------------------------------
 
-test("renameForOrder makes names AND timestamps ascend together", () => {
+test("prepareForShare makes names AND timestamps ascend together", () => {
   const base = 1_700_000_000_000;
   const files = ["a.jpg", "b.HEIC", "c.mov"].map((n, i) =>
-    renameForOrder(new File(["x"], n, { type: "image/jpeg" }), i + 1, base));
+    prepareForShare(new File(["x"], n, { type: "image/jpeg" }),
+      { position: i + 1, count: 3, time: base + (i + 1) * 1000 }));
 
   assert.deepEqual(files.map((f) => f.name), ["01.jpg", "02.HEIC", "03.mov"]);
   for (let i = 1; i < files.length; i++) {
     assert.ok(files[i].lastModified > files[i - 1].lastModified,
-      "Messages is reported to sort by timestamp, so these must ascend");
+      "anything sorting by file date must land on the same order as the names");
   }
-  assert.equal(files[0].lastModified, base + 1000);
 });
 
-test("renameForOrder overrides Safari's export timestamp rather than keeping it", () => {
+test("prepareForShare overrides Safari's export timestamp rather than keeping it", () => {
   const stale = new File(["x"], "IMG_1.jpg", { type: "image/jpeg", lastModified: 999 });
-  const out = renameForOrder(stale, 4, 1_700_000_000_000);
+  const out = prepareForShare(stale, { position: 4, count: 9, time: 1_700_000_004_000 });
   assert.notEqual(out.lastModified, 999);
-  assert.equal(out.lastModified, 1_700_000_000_000 + 4000);
+  assert.equal(out.lastModified, 1_700_000_004_000);
+});
+
+// --- making every ordering rule agree --------------------------------------
+
+test("captureSequence leaves a real capture date exactly as it is", () => {
+  const morning = at("2026-08-16", 9);
+  const evening = at("2026-08-16", 20);
+  const out = captureSequence([{ takenAt: morning, day: "2026-08-16" },
+                               { takenAt: evening, day: "2026-08-16" }], "2026-08-21");
+  assert.deepEqual(out.map((d) => d.getTime()), [morning.getTime(), evening.getTime()]);
+});
+
+test("captureSequence invents a date that lands late on the item's own day", () => {
+  const morning = at("2026-08-16", 9);
+  const nextDay = at("2026-08-17", 8);
+  const out = captureSequence([
+    { takenAt: morning, day: "2026-08-16" },
+    { takenAt: null,    day: "2026-08-16" },     // the hand-placed screenshot
+    { takenAt: nextDay, day: "2026-08-17" },
+  ], "2026-08-21");
+
+  assert.equal(out[0].getTime(), morning.getTime());
+  assert.ok(out[1] > morning, "after the photos that day that do know their time");
+  assert.ok(out[1] < nextDay, "and still before the next day begins");
+  assert.equal(isoDay(out[1]), "2026-08-16", "and on the day she put it on");
+});
+
+test("captureSequence is strictly ascending, so date order IS send order", () => {
+  const items = [
+    { takenAt: at("2026-08-16", 9), day: "2026-08-16" },
+    { takenAt: null,                day: "2026-08-16" },
+    { takenAt: null,                day: "2026-08-16" },
+    { takenAt: at("2026-08-17", 9), day: "2026-08-17" },
+    { takenAt: null,                day: null },        // a stray, sent last
+  ];
+  const out = captureSequence(items, "2026-08-21");
+  for (let i = 1; i < out.length; i++) {
+    assert.ok(out[i] > out[i - 1],
+      `#${i} must be later than #${i - 1} or a date-sorting app disagrees with us`);
+  }
+});
+
+test("prepareForShare writes a capture date into a photo that had none", async () => {
+  const bare = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], "IMG.jpg", { type: "image/jpeg" });
+  assert.equal(fromJpeg(await bare.arrayBuffer()), null, "nothing to read to begin with");
+
+  const when = at("2026-08-16", 23);
+  const out = prepareForShare(bare, { position: 1, count: 4, time: 5, captureDate: when });
+  const read = fromJpeg(await out.arrayBuffer());
+  assert.ok(read, "and now a date-sorting app has something to sort by");
+  assert.equal(read.getTime(), when.getTime());
+  assert.equal(out.name, "01.jpg");
+});
+
+test("prepareForShare leaves the bytes alone when no capture date is given", async () => {
+  const original = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+  const file = new File([original], "IMG.jpg", { type: "image/jpeg" });
+  const out = prepareForShare(file, { position: 2, count: 4, time: 5 });
+  assert.deepEqual(new Uint8Array(await out.arrayBuffer()), original);
 });
 
 test("stampTime keeps the name and only moves the clock", () => {
