@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fromJpeg, fromMp4, parseExifDate, fromLastModified } from "../public/js/exif.js";
+import { fromJpeg, fromMp4, parseExifDate, fromLastModified, fromQuickTimeMeta } from "../public/js/exif.js";
+import { isoDay } from "../public/js/dates.js";
 
 /**
  * Build the smallest JPEG that carries a real EXIF DateTimeOriginal.
@@ -124,4 +125,66 @@ test("fromLastModified distrusts a just-now timestamp", () => {
 
   const old = now - 3 * 24 * 3600 * 1000;
   assert.equal(fromLastModified(old, now).getTime(), old);
+});
+
+// --- video: the transcode rewrites the one date the file had ----------------
+
+const ascii = (s) => Uint8Array.from(s, (c) => c.charCodeAt(0));
+
+/** An mvhd box whose creation time is `secondsAgo` in the past. */
+function mvhd(secondsAgo, now = Date.now()) {
+  const QT_EPOCH = Date.UTC(1904, 0, 1);
+  const when = new Date(now - secondsAgo * 1000);
+  // Apple writes local wall clock into this field as though it were UTC.
+  const asIfUtc = Date.UTC(when.getFullYear(), when.getMonth(), when.getDate(),
+    when.getHours(), when.getMinutes(), when.getSeconds());
+  const box = new Uint8Array(120);
+  const view = new DataView(box.buffer);
+  box.set(ascii("mvhd"), 8);
+  view.setUint8(12, 0);                                   // version 0
+  view.setUint32(16, Math.round((asIfUtc - QT_EPOCH) / 1000));
+  view.setUint32(24, 600);
+  return box;
+}
+
+test("fromQuickTimeMeta reads the date Apple writes as a string", () => {
+  const buf = new Uint8Array([
+    ...ascii("com.apple.quicktime.creationdate"),
+    0, 0, 0, 0,
+    ...ascii("2026-09-02T14:33:21-0500"),
+  ]);
+  const got = fromQuickTimeMeta(buf.buffer);
+  assert.equal(got.getFullYear(), 2026);
+  assert.equal(got.getMonth(), 8);
+  assert.equal(got.getDate(), 2);
+  assert.equal(got.getHours(), 14, "the wall clock where it was filmed, offset ignored");
+});
+
+test("fromQuickTimeMeta finds nothing in a file that carries nothing", () => {
+  assert.equal(fromQuickTimeMeta(ascii("just some bytes, 2026 or so").buffer), null);
+});
+
+test("fromMp4 refuses an mvhd stamped a moment ago — that is the transcode", () => {
+  // iOS re-encodes video on its way into a file input, which rewrites mvhd to
+  // the moment of the export. Trusting it filed a clip from the 2nd under the
+  // 10th. No date is better: the clip lands in Unsorted and she places it.
+  assert.equal(fromMp4(mvhd(30).buffer), null);
+  assert.equal(fromMp4(mvhd(9 * 60).buffer), null, "still within the export window");
+});
+
+test("fromMp4 still trusts an mvhd from a clip actually filmed days ago", () => {
+  const got = fromMp4(mvhd(3 * 86400).buffer);
+  assert.ok(got, "a real creation time is still the best thing in the file");
+  assert.equal(isoDay(got), isoDay(new Date(Date.now() - 3 * 86400 * 1000)));
+});
+
+test("fromMp4 prefers Apple's string over an mvhd the transcode rewrote", () => {
+  const filmed = new Uint8Array([
+    ...ascii("com.apple.quicktime.creationdate"), 0, 0, 0, 0,
+    ...ascii("2026-09-02T14:33:21-0500"),
+  ]);
+  const both = new Uint8Array([...mvhd(30), ...filmed]);
+  const got = fromMp4(both.buffer);
+  assert.ok(got, "the string survives the transcode that rewrote mvhd");
+  assert.equal(got.getDate(), 2);
 });

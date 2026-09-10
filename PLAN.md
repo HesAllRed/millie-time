@@ -260,6 +260,25 @@ land in names the rule that app actually obeys, in one send. That answer decides
 whether anything further is worth building — per-day sends, burned-in numbering,
 or nothing at all.
 
+### 1.3c ⚠️ iOS transcodes video on the way into a file input
+
+A clip picked out of the camera roll arrives as H.264 whatever it started as,
+and the transcode rewrites the `mvhd` creation time to the moment of the export.
+So the one date an MP4 reliably carries is a lie about today — which is how a
+clip filmed on the 2nd came through filed under the 10th, on the wrong day in
+the app before the share ever touched it.
+
+Apple writes the real thing separately, as `com.apple.quicktime.creationdate`,
+an ISO-8601 string in the movie metadata, and *that* survives the transcode. We
+scan for it rather than walk the `keys`/`ilst` indirection, because it is
+recognisable on sight and the alternative is a great deal of machinery for one
+string.
+
+Failing that, an `mvhd` stamped within the last few minutes is refused on the
+same grounds `fromLastModified` refuses Safari's export stamp: no date is better
+than today's, because no date puts the clip in the Unsorted tray where she can
+place it herself.
+
 ### 1.4 iOS PWA behavior
 
 - Home-screen PWAs are **exempt from the 7-day script-writable storage cap** that
