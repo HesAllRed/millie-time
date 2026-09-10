@@ -378,12 +378,14 @@ test("a clip keeps the date it was filmed, even though it sends last", options, 
 
 test("resizing lands every photo on the same weight, so all of them tie", options, async () => {
   await withApp(async (app) => {
-    // The spread that breaks a real week: something saved out of an app, next
-    // to a camera original. Real pixels, so the re-encode has real work to do.
+    // The spread that breaks a real week. The wide crop is the case that stayed
+    // out of order after the first attempt: 1206×493 is well inside any
+    // sensible long-edge cap, and low enough on detail that quality alone
+    // cannot make it weigh what a camera photo weighs.
     const specs = await makeFixtures(app.page, dir, [
-      { label: "app-save", takenAt: at(3, 9, 0), pixels: [640, 480] },
+      { label: "app-save", takenAt: at(3, 9, 0), pixels: [640, 480], flat: true },
       { label: "camera", takenAt: at(2, 9, 0), pixels: [3024, 4032] },
-      { label: "middling", takenAt: at(1, 9, 0), pixels: [1600, 1200] },
+      { label: "wide-crop", takenAt: at(1, 9, 0), pixels: [1206, 493], flat: true },
     ]);
 
     await app.pick(specs.map((s) => s.file));
@@ -396,9 +398,9 @@ test("resizing lands every photo on the same weight, so all of them tie", option
 
     const kb = photos.map((f) => f.size / 1024);
     const spread = Math.max(...kb) - Math.min(...kb);
-    // Photos ~0.3 MB apart arrived shuffled on a real week; the probe spans
-    // 0.23 MB and never does. The whole week has to fit inside that window.
-    assert.ok(spread < 250,
+    // A 113 KB gap was enough to pull a cropped screenshot to the front of a
+    // real week, so "inside the tie window" is not a generous target.
+    assert.ok(spread < 60,
       `every photo has to be a tie, but they span ${Math.round(spread)} KB: ${kb.map(Math.round)}`);
 
     // And a week that used to weigh five megabytes now weighs well under two.
@@ -413,7 +415,7 @@ test("a resized photo keeps the date it was taken", options, async () => {
     const second = at(1, 14, 30);
     const specs = await makeFixtures(app.page, dir, [
       { label: "one", takenAt: first, pixels: [3024, 4032] },
-      { label: "two", takenAt: second, pixels: [640, 480] },
+      { label: "two", takenAt: second, pixels: [640, 480], flat: true },
     ]);
 
     await app.pick(specs.map((s) => s.file));

@@ -54,21 +54,24 @@ export default {
   // are not. Set false to send originals and accept the shuffle.
   resizeForShare: true,
 
-  // The long edge to draw down to, and roughly what each photo should weigh.
+  // What every photo is redrawn to, and roughly what each should weigh.
   //
-  // The tie threshold looks absolute rather than proportional: photos ~0.3 MB
-  // apart arrived shuffled, and the eleven-file probe spans 0.23 MB and never
-  // does. So the target has to be low enough that the whole week fits inside
-  // that window — INCLUDING the small ones, which cannot be brought up, because
-  // we never upscale a photo to make it heavier. At 1280px/200 KB a saved
-  // Snapchat picture and a camera original both land under a quarter of a
-  // megabyte, and everything ties.
+  // A pixel budget rather than a long edge, because a long edge says nothing
+  // about a crop: a 1206×493 screenshot sits well inside a 1280 cap while
+  // being a third of the pixels of a photo that fills it — which is how it
+  // ended up a third of the weight, and the one photo still out of order.
   //
-  // Raise these for better photos and a wider spread of weights, which makes
-  // the ties — and so the order — less certain. Roughly what WhatsApp does to a
-  // photo by default, for reference.
-  shareLongEdge: 1280,
+  // Both a ceiling and a floor, for the same reason. A photo that comes out
+  // under the floor gets quality spent on it until it is heavy enough to tie
+  // with the rest of the week, and is drawn up to twice its size if that is
+  // what the budget takes. Bigger is the point in that one case.
+  //
+  // 1.2 megapixels is roughly what WhatsApp does to a photo by default. Raise
+  // it for better photos and a wider spread of weights, which makes the ties —
+  // and so the order — less certain.
+  sharePixels: 1200000,
   shareTargetKb: 200,
+  shareFloorKb: 150,
 
   // Pad files to ascend in weight, so that an app landing attachments in
   // upload-completion order lands them in the order the week reads.
@@ -99,5 +102,5 @@ export default {
   videosLast: true,
 
   // Bumped on release; shown in the footer and on #debug.
-  version: "1.0.13",
+  version: "1.0.14",
 };

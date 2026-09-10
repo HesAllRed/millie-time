@@ -245,14 +245,22 @@ edge and re-encoded at whatever quality lands it near a common size, at intake,
 behind the progress line she is already watching. The week stops being a race
 and goes back to being a list.
 
-The threshold looks absolute rather than proportional — photos 0.3 MB apart
-arrived shuffled, and the probe spans 0.23 MB and never does — so the target has
-to be low enough that the *whole* week fits inside that window, including the
-small ones, which cannot be brought up: we never upscale a photo to make it
-heavier. At 1280px / 200 KB a saved Snapchat picture and a camera original both
-land under a quarter of a megabyte. Measured over a week shaped like hers, nine
-photos from a 640×480 app-save to 12 MP originals: 20, 199, 198, 193, 192, 190,
-198, 192, 199 KB — a 179 KB spread, and 14.7 MB becomes 1.54 MB.
+**A ceiling is not enough; the band needs a floor too.** Capping every photo at
+200 KB left nine of ten in order and one still leading: a cropped screenshot,
+1206×493, which came out at 87 KB. A 113 KB gap was enough to win the race. Two
+things were wrong with capping alone. A *long edge* says nothing about a crop —
+that screenshot sits well inside a 1280 cap while being a third of the pixels of
+a photo that fills it — so the target is a **pixel budget**, and a photo under
+it is drawn up. And quality alone cannot make a low-detail picture heavy: JPEG
+encodes flat regions cheaply however you ask. The only lever that moves the
+weight of a picture with nothing in it is to put something in it, so a photo
+still under the floor gets a few levels of grain and another quality search,
+twice more if it needs them. Invisible at arm's length, and worth several times
+its size to the encoder.
+
+Measured over a week shaped like hers — nine photos, a 640×480 app-save and a
+1206×493 crop among 12 MP originals: 194, 197, 197, 193, 199, 190, 196, 199, 197
+KB. A **9 KB spread**, and 13.6 MB becomes 1.72 MB.
 
 The cost is worth stating plainly: the family receives phone-sized photos rather
 than originals. On a screen they are the same picture. Cropped or printed they
