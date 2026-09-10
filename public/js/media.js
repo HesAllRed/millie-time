@@ -1,6 +1,9 @@
 // File intake, capture dates, video posters, and the one-video-at-a-time rule.
 
-import { fromJpeg, fromMp4, fromLastModified, exifApp1, isJpeg } from "./exif.js";
+import {
+  fromJpeg, fromPng, fromMp4, fromLastModified,
+  exifApp1, exifPngChunk, isJpeg, isPng, PNG_AFTER_IHDR,
+} from "./exif.js";
 import { isoDay } from "./dates.js";
 
 const HEAD_BYTES  = 256 * 1024;        // plenty for a JPEG's EXIF block
@@ -117,17 +120,19 @@ export async function ingest(fileList, onProgress) {
     let takenAt = null;
     let url = null;
     let poster = null;
-    // Two separate facts, and the share needs both: whether we can splice a
-    // capture date into these bytes, and whether one is already in there.
-    let jpeg = false;
+    // Two separate facts, and the share needs both: which container this is, so
+    // we know whether a capture date can be spliced into it and how, and
+    // whether one is already in there.
+    let container = null;              // "jpeg" | "png" | null
     let hasExifDate = false;
 
     try {
       if (kind === "photo") {
         url = URL.createObjectURL(file);
         const head = await file.slice(0, HEAD_BYTES).arrayBuffer();
-        jpeg = isJpeg(head);
-        takenAt = fromJpeg(head);
+        // By the bytes, never the name or the type iOS claims.
+        if (isJpeg(head)) { container = "jpeg"; takenAt = fromJpeg(head); }
+        else if (isPng(head)) { container = "png"; takenAt = fromPng(head); }
         hasExifDate = takenAt !== null;
       } else {
         takenAt = fromMp4(await file.slice(0, MP4_HEAD).arrayBuffer());
@@ -147,7 +152,7 @@ export async function ingest(fileList, onProgress) {
     out.push({
       id: `i${Date.now().toString(36)}${(seq++).toString(36)}`,
       file, kind, url, poster, takenAt,
-      jpeg, hasExifDate,
+      container, hasExifDate,
       day: null,
     });
   }
@@ -192,6 +197,22 @@ export function orderedName(file, position, count = 99) {
 }
 
 /**
+ * Splice a capture date into the bytes, without reading them.
+ *
+ * Each container carries EXIF in its own wrapper at its own fixed offset — a
+ * JPEG in an APP1 segment straight after SOI, a PNG in an eXIf chunk straight
+ * after IHDR. Both offsets are pinned by the format, which is why this can be
+ * three Blob slices rather than a parse.
+ */
+function datedParts(file, container, when) {
+  if (container === "jpeg") return [file.slice(0, 2), exifApp1(when), file.slice(2)];
+  if (container === "png") {
+    return [file.slice(0, PNG_AFTER_IHDR), exifPngChunk(when), file.slice(PNG_AFTER_IHDR)];
+  }
+  return [file];
+}
+
+/**
  * Build the copy of a file that actually gets shared.
  *
  * Three separate things a receiving app might sort by, all set to say the same
@@ -201,19 +222,17 @@ export function orderedName(file, position, count = 99) {
  *   lastModified ascending       for anything that sorts by file date
  *   capture date ascending       for anything that sorts by "date taken"
  *
- * `captureDate` is only ever passed for a JPEG whose own EXIF says nothing —
+ * `captureDate` is only ever passed for a file whose own metadata says nothing —
  * a real capture date is the truth and is never overwritten, and it already
  * agrees with our order because it is what we sorted on.
  *
  * Every part here is a Blob slice, so nothing is read into memory: a
  * twenty-photo week costs twenty File objects, not sixty megabytes.
  */
-export function prepareForShare(file, { position, count, time, captureDate = null }) {
+export function prepareForShare(file, { position, count, time, container = null, captureDate = null }) {
   const name = orderedName(file, position, count);
   try {
-    const parts = captureDate
-      ? [file.slice(0, 2), exifApp1(captureDate), file.slice(2)]
-      : [file];
+    const parts = captureDate ? datedParts(file, container, captureDate) : [file];
     return new File(parts, name, { type: file.type, lastModified: time });
   } catch {
     return file;                       // never let this cost us the share

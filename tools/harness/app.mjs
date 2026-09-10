@@ -108,6 +108,7 @@ export async function openApp({ headless = true, caps = {}, hash = "" } = {}) {
         const { state } = await import("/js/state.js");
         return state.items.map((i) => ({
           kind: i.kind,
+          container: i.container,
           name: i.file.name,
           takenAt: i.takenAt ? i.takenAt.toISOString() : null,
           day: i.day,
@@ -176,13 +177,13 @@ export async function openApp({ headless = true, caps = {}, hash = "" } = {}) {
      */
     payloads() {
       return page.eval(`
-        const { fromJpeg, fromMp4 } = await import("/js/exif.js");
+        const { fromJpeg, fromPng, fromMp4 } = await import("/js/exif.js");
         const out = [];
         for (const share of window.__shares) {
           const files = [];
           for (const f of share.files || []) {
             const head = await f.slice(0, 262144).arrayBuffer();
-            const taken = fromJpeg(head) || fromMp4(head);
+            const taken = fromJpeg(head) || fromPng(head) || fromMp4(head);
             files.push({
               name: f.name,
               type: f.type,

@@ -29,7 +29,9 @@ function shareManifest() {
     // "ours" means the file carried no capture date and we wrote this one in,
     // so that an app sorting by date taken agrees with the order we sent.
     taken: stamps[i],
-    dateSource: item.kind === "video" ? "video" : item.hasExifDate ? "exif" : item.jpeg ? "ours" : "none",
+    dateSource: item.kind === "video" ? "video"
+      : item.hasExifDate ? "exif"
+      : item.container ? `ours/${item.container}` : "none",
   }));
 }
 

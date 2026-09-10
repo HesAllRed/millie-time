@@ -187,3 +187,36 @@ test("the order probe sends six photos whose rules deliberately disagree", optio
     assert.deepEqual(positions(byStamp), [2, 1, 4, 3, 6, 5], "file-timestamp order");
   });
 });
+
+test("a screenshot in the week goes out carrying a date like everything else", options, async () => {
+  await withApp(async (app) => {
+    const specs = await makeFixtures(app.page, dir, [
+      { label: "camera-am",  takenAt: at(2, 9, 0) },
+      { label: "screenshot", takenAt: at(2, 15, 0), kind: "screenshot" },
+      { label: "camera-pm",  takenAt: at(2, 20, 0) },
+      { label: "next-day",   takenAt: at(1, 10, 0) },
+    ]);
+
+    await app.pick(specs.map((s) => s.file));
+    const items = await app.items();
+    const shot = items.find((i) => i.name.includes("screenshot"));
+    assert.equal(shot.container, "png", "recognised by its bytes, not its name");
+    assert.equal(shot.day, null, "an iOS screenshot says nothing about when it was taken");
+
+    await app.assign("pick2-screenshot.png", isoBack(2));
+    await app.toDeck();
+    await app.share();
+
+    const [sent] = await app.payloads();
+    const photos = sent.files.filter((f) => f.from);
+    assert.deepEqual(shotOrder(sent.files), ["camera-am", "camera-pm", "screenshot", "next-day"]);
+
+    for (const f of photos) {
+      assert.ok(f.taken !== null, `${f.from} (${f.name}) went out with no capture date at all`);
+    }
+    for (let i = 1; i < photos.length; i++) {
+      assert.ok(photos[i].taken > photos[i - 1].taken,
+        `capture dates must still ascend, but ${photos[i].from} does not`);
+    }
+  });
+});
