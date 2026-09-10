@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   composeText, activeDays, dayStatus, totalBytes, formatBytes, itemsForDay, orderedItems, messageDays,
-  captureSequence, weightLadder, shareOrder,
+  captureSequence, weightLadder, weightPlan, shareOrder,
 } from "../public/js/compose.js";
 import { prepareForShare, orderedName } from "../public/js/media.js";
 import { windowDays, isoDay } from "../public/js/dates.js";
@@ -245,7 +245,32 @@ test("captureSequence invents a date that lands late on the item's own day", () 
   assert.equal(isoDay(out[1]), "2026-08-16", "and on the day she put it on");
 });
 
-test("captureSequence is strictly ascending, so date order IS send order", () => {
+test("captureSequence never moves a real date, even when the send reorders it", () => {
+  // The clip was filmed on Sunday but goes last, after the week's photos.
+  // Forcing the sequence to ascend used to drag its date along with its
+  // position — which filed a video from the 2nd under the 10th.
+  const filmed = at("2026-08-16", 11);
+  const out = captureSequence([
+    { takenAt: at("2026-08-17", 9), day: "2026-08-17" },
+    { takenAt: at("2026-08-18", 9), day: "2026-08-18" },
+    { takenAt: filmed, day: "2026-08-16", kind: "video" },
+  ], "2026-08-21");
+
+  assert.equal(out[2].getTime(), filmed.getTime(),
+    "the date is the truth and the send order has no claim on it");
+});
+
+test("captureSequence gives two undated photos on one day distinct times", () => {
+  const out = captureSequence([
+    { takenAt: null, day: "2026-08-16" },
+    { takenAt: null, day: "2026-08-16" },
+  ], "2026-08-21");
+  assert.notEqual(out[0].getTime(), out[1].getTime());
+  assert.equal(isoDay(out[0]), "2026-08-16");
+  assert.equal(isoDay(out[1]), "2026-08-16", "and both stay on the day she put them on");
+});
+
+test("captureSequence still ascends for a week that reads chronologically", () => {
   const items = [
     { takenAt: at("2026-08-16", 9), day: "2026-08-16" },
     { takenAt: null,                day: "2026-08-16" },
@@ -410,4 +435,33 @@ test("shareOrder sends clips last, because they cannot be padded past", () => {
   assert.deepEqual(shareOrder(items, week).map((i) => i.id), ["mon", "tue", "clip"]);
   assert.deepEqual(shareOrder(items, week, false).map((i) => i.id), ["mon", "clip", "tue"],
     "and stays in place when the config says so");
+});
+
+
+test("weightPlan leaves clips alone and budgets around them", () => {
+  const entries = [
+    { size: 3 * MB, kind: "photo" },
+    { size: 30 * MB, kind: "video" },
+    { size: 1 * MB, kind: "photo" },
+  ];
+  const plan = weightPlan(entries, { stepMb: 1, budgetMb: 100 });
+
+  assert.equal(plan.targets[1], 30 * MB, "a clip is never padded past");
+  assert.ok(plan.targets[2] > plan.targets[0], "the photos still ascend around it");
+  assert.equal(plan.total, plan.targets.reduce((a, b) => a + b, 0));
+});
+
+test("weightPlan does not let a heavy clip sink the whole ladder", () => {
+  // Padding every photo past a 40 MB clip is a message that will not send.
+  // Excluding it is what keeps the photos orderable at all.
+  const entries = [
+    { size: 40 * MB, kind: "video" },
+    { size: 5 * MB, kind: "photo" },
+    { size: 1 * MB, kind: "photo" },
+    { size: 1 * MB, kind: "photo" },
+  ];
+  const plan = weightPlan(entries, { stepMb: 1, budgetMb: 60 });
+  assert.ok(plan, "the photos are still orderable");
+  assert.deepEqual(plan.targets.slice(1).map((t) => t / MB), [5, 6, 7]);
+  assert.equal(plan.total / MB, 58);
 });

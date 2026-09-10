@@ -7,7 +7,7 @@ import {
   state, set, subscribe, days, refreshWindow, unsortedCount,
   loadSession, saveSession, writeSession, clearAll,
 } from "./state.js";
-import { composeText, shareOrder, captureSequence, weightLadder } from "./compose.js";
+import { composeText, shareOrder, captureSequence, weightPlan } from "./compose.js";
 import { ingest, assignDays, stopVideo, prepareForShare } from "./media.js";
 import { renderPrint } from "./print.js";
 import { copyText, runShareLadder, shareWords, sharePhotos } from "./share.js";
@@ -147,24 +147,26 @@ function payload() {
   // thing in the batch — which is exactly where the ladder wants it.
   const entries = ordered.map((item, i) => ({
     file: item.file,
+    kind: item.kind,
     container: item.container,
+    // The truth, wherever the file knows it. Stamping "now" on everything is
+    // what filed a clip from the 2nd under the 10th.
+    time: stamps[i].getTime(),
     // Only ever for a file that doesn't already say when it was taken. A real
     // capture date is the truth and stays untouched.
     captureDate: item.container && !item.hasExifDate ? stamps[i] : null,
   }));
-  if (printFile) entries.unshift({ file: printFile, name: printFile.name });
+  if (printFile) entries.unshift({ file: printFile, name: printFile.name, time: Date.now() });
 
   // Messages lands attachments as their uploads finish, so weight is the only
   // ordering signal it acts on. See compose.js.
   const ladder = cfg.renumberOnShare && cfg.orderByWeight
-    ? weightLadder(entries.map((e) => e.file.size), {
-        stepBytes: cfg.weightStepMb * MB,
-        budgetBytes: cfg.maxPayloadMb * MB,
+    ? weightPlan(entries.map((e) => ({ size: e.file.size, kind: e.kind })), {
+        stepMb: cfg.weightStepMb,
+        budgetMb: cfg.maxPayloadMb,
       })
     : null;
 
-  // One base for the whole batch, so names and timestamps ascend together.
-  const base = Date.now() - (entries.length + 2) * 1000;
   const photos = entries.filter((e) => !e.name).length;
 
   let numbered = 0;
@@ -175,7 +177,7 @@ function payload() {
       name: entry.name || null,
       position: numbered,
       count: photos,
-      time: base + (i + 1) * 1000,
+      time: entry.time,
       container: entry.container,
       captureDate: entry.captureDate,
       padTo: ladder ? ladder.targets[i] : 0,

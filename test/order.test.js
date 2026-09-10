@@ -329,3 +329,32 @@ test("padding is trailing bytes, so the photo still decodes and keeps its date",
     assert.ok(decoded.w > 0 && decoded.h > 0, "a padded photo must still be a photo");
   });
 });
+
+test("a clip keeps the date it was filmed, even though it sends last", options, async () => {
+  await withApp(async (app) => {
+    const filmed = at(3, 11, 0);                 // the start of the week
+    const specs = await makeFixtures(app.page, dir, [
+      { label: "clip", takenAt: filmed, kind: "video" },
+      { label: "later-photo", takenAt: at(1, 9, 0) },
+    ]);
+
+    await app.pick(specs.map((s) => s.file));
+    await app.toDeck();
+    await app.share();
+
+    const [sent] = await app.payloads();
+    const clip = sent.files.find((f) => f.from === "clip");
+    assert.equal(sent.files[sent.files.length - 1].from, "clip", "it goes last, being unpaddable");
+
+    // The bug: every file was stamped with "now", so a clip from the 2nd was
+    // filed under the 10th by anything reading the file date.
+    assert.equal(clip.lastModified, filmed.getTime(),
+      "the file date must be when it was filmed, not when it was sent");
+    assert.ok(clip.lastModified < Date.now() - 2 * DAY,
+      "and must not be anywhere near today");
+
+    const photo = sent.files.find((f) => f.from === "later-photo");
+    assert.ok(photo.lastModified > clip.lastModified,
+      "the photo really was taken later, and the dates say so");
+  });
+});
