@@ -158,6 +158,45 @@ export function fromPng(buffer) {
 const QT_EPOCH = Date.UTC(1904, 0, 1);
 
 /**
+ * Apple's `com.apple.quicktime.creationdate`, written as an ISO-8601 string in
+ * the movie metadata.
+ *
+ * This is the one date on a clip worth having. iOS transcodes video on its way
+ * into a file input — a clip picked out of the roll arrives as H.264 whatever
+ * it started as — and the transcode rewrites `mvhd`'s creation time to the
+ * moment of the export. This string is written by the camera and carried
+ * through, so it still says when the thing was filmed.
+ *
+ * Scanned for rather than parsed to: the value lives in an `ilst` box indexed
+ * by a number that refers into a separate `keys` box, and walking that to find
+ * one string is a great deal of machinery for a date we can recognise on sight.
+ *
+ * The offset on the end is deliberately ignored. The wall clock in the string
+ * is the local time where it was filmed, which is the calendar day we want.
+ */
+export function fromQuickTimeMeta(buffer) {
+  const b = new Uint8Array(buffer);
+  const digit = (at) => b[at] >= 0x30 && b[at] <= 0x39;
+
+  for (let i = 0; i + 19 <= b.length; i++) {
+    // YYYY-MM-DDTHH:MM:SS
+    if (!digit(i) || !digit(i + 1) || !digit(i + 2) || !digit(i + 3)) continue;
+    if (b[i + 4] !== 0x2d || !digit(i + 5) || !digit(i + 6)) continue;
+    if (b[i + 7] !== 0x2d || !digit(i + 8) || !digit(i + 9)) continue;
+    if (b[i + 10] !== 0x54) continue;                        // "T"
+    if (!digit(i + 11) || !digit(i + 12) || b[i + 13] !== 0x3a) continue;
+    if (!digit(i + 14) || !digit(i + 15) || b[i + 16] !== 0x3a) continue;
+    if (!digit(i + 17) || !digit(i + 18)) continue;
+
+    let text = "";
+    for (let k = 0; k < 19; k++) text += String.fromCharCode(b[i + k]);
+    const parsed = parseExifDate(text.replace(/-/g, ":").replace("T", " "));
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
+/**
  * Pull the creation time out of an MP4/MOV `mvhd` box.
  *
  * We scan for the atom rather than walking the box tree, because iPhone .mov
@@ -168,12 +207,23 @@ const QT_EPOCH = Date.UTC(1904, 0, 1);
  * we read the UTC components back out and rebuild them as local time. That
  * gets the right calendar day, which is all we need.
  *
+ * Apple's own metadata is tried first, because `mvhd` is rewritten by the
+ * transcode iOS performs on the way into a file input, and an `mvhd` that says
+ * "a moment ago" is that rewrite rather than a clip filmed a moment ago. We
+ * refuse it on the same grounds `fromLastModified` refuses Safari's export
+ * stamp: a lie about today is worse than admitting we do not know, because
+ * "we do not know" puts the clip in the Unsorted tray where she can place it.
+ *
  * @param {ArrayBuffer} buffer
+ * @param {number} now
  * @returns {Date|null}
  */
-export function fromMp4(buffer) {
+export function fromMp4(buffer, now = Date.now()) {
   const bytes = new Uint8Array(buffer);
   const view = new DataView(buffer);
+
+  const filmed = fromQuickTimeMeta(buffer);
+  if (filmed) return filmed;
 
   for (let i = 0; i + 20 < bytes.length; i++) {
     if (bytes[i] !== 0x6d || bytes[i + 1] !== 0x76 ||
@@ -199,8 +249,13 @@ export function fromMp4(buffer) {
     const year = asUtc.getUTCFullYear();
     if (year < 2000 || year > 2200) continue;                     // junk guard
 
-    return new Date(year, asUtc.getUTCMonth(), asUtc.getUTCDate(),
-                    asUtc.getUTCHours(), asUtc.getUTCMinutes(), asUtc.getUTCSeconds());
+    const stamped = new Date(year, asUtc.getUTCMonth(), asUtc.getUTCDate(),
+                             asUtc.getUTCHours(), asUtc.getUTCMinutes(), asUtc.getUTCSeconds());
+
+    // Written within the last few minutes? That is the transcode, not the
+    // filming. Better no date than today's.
+    if (Math.abs(now - stamped.getTime()) < 10 * 60 * 1000) return null;
+    return stamped;
   }
   return null;
 }
