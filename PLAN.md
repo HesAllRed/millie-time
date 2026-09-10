@@ -224,14 +224,25 @@ This is also why the probes looked fine for so long: those screenshots were the
 **compose tray**, which does show the array order we hand over. The scrambling
 happens on send, and nothing in the payload overrides it.
 
-So the last lever is the race itself. Files are padded to ascend in weight in
-the order the week reads, by a margin wide enough that jitter cannot swap a
-pair — trailing bytes past EOI or IEND, which every decoder ignores, so not a
-pixel is touched. Padding can only add, so the cost is driven by how badly the
-real sizes are inverted against the week; hence a budget, a margin that narrows
-to fit, and the willingness to give up entirely, because a 200 MB message that
-fails to send is worse than a 60 MB one that arrives shuffled. Her week: 67 MB
-becomes 100 MB, and the race then produces exactly the intended order.
+**Padding does not work, and the measurement says why.** The first attempt was
+to pad files to ascend in weight — trailing bytes past EOI or IEND, which every
+decoder ignores. On the next real week the arrival order matched the *padded*
+sizes in 2 positions out of 10, and the *real* ones in 8 — the only disagreement
+being two photos 0.3 MB apart. It had added 32.5 MB to the message and changed
+nothing. iOS re-encodes images on the way out, and the padding goes with them.
+The code is kept but off by default: a target that sorts by the bytes it is
+handed would still be helped, and Messages is not one.
+
+**One model fits everything now.** Attachments land in upload-completion order,
+which tracks the *real* encoded weight; files within roughly 0.3 MB of each
+other are ties, and ties fall back to the array order we handed over. That is
+also why the eleven-file probe arrives 1–11 every time: measured, its real
+images are 0.28–0.51 MB, a spread of 0.23 MB, so every one of them is a tie and
+the array order stands.
+
+The lever that remains, then, is the real weight of the pixels: re-encode the
+week to a common size and every photo becomes a tie. That is a decision about
+what the family receives, not a bug fix.
 
 Clips go last, and are left out of the ladder entirely. A 29 MB video mid-week
 would mean padding every photo after it past 29 MB — a message that will not

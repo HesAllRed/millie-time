@@ -41,15 +41,19 @@ export default {
   // to say the same thing. Set false to hand the files over untouched.
   renumberOnShare: true,
 
-  // Messages lands attachments in the order their uploads finish, which tracks
-  // file size — so the files are padded to ascend in weight in the order the
-  // week reads. Trailing bytes only; not a pixel of a photo is touched.
-  // Set false to hand the files over at their real sizes.
-  orderByWeight: true,
+  // Pad files to ascend in weight, so that an app landing attachments in
+  // upload-completion order lands them in the order the week reads.
+  //
+  // OFF, and measured so. iOS re-encodes images on the way out and the padding
+  // goes with them: on a real week the arrival order matched the PADDED sizes
+  // in 2 positions out of 10 and the REAL ones in 8, having added 32.5 MB to
+  // the message to achieve nothing. Kept because a target that sorts by the
+  // bytes it is handed would still be helped by it — Messages is not one.
+  orderByWeight: false,
 
-  // How much bigger each file must be than the one before it. Three photos
-  // within 0.4 MB of each other arrived shuffled, so the margin has to clear
-  // that comfortably. Narrowed automatically if the week won't fit the budget.
+  // How much bigger each file must be than the one before it, when the above is
+  // on. Photos within ~0.3 MB of each other arrive as ties, so the margin has
+  // to clear that. Narrowed automatically if the week won't fit the budget.
   weightStepMb: 0.75,
 
   // The most we will let a message weigh — iMessage stops carrying attachments
@@ -66,5 +70,5 @@ export default {
   videosLast: true,
 
   // Bumped on release; shown in the footer and on #debug.
-  version: "1.0.11",
+  version: "1.0.12",
 };
