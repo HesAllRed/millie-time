@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   composeText, activeDays, dayStatus, totalBytes, formatBytes, itemsForDay, orderedItems, messageDays,
-  captureSequence,
+  captureSequence, weightLadder, shareOrder,
 } from "../public/js/compose.js";
-import { prepareForShare, orderedName, stampTime } from "../public/js/media.js";
+import { prepareForShare, orderedName } from "../public/js/media.js";
 import { windowDays, isoDay } from "../public/js/dates.js";
 import { fromJpeg, fromPng, isPng } from "../public/js/exif.js";
 
@@ -341,9 +341,73 @@ test("prepareForShare leaves the bytes alone when no capture date is given", asy
   assert.deepEqual(new Uint8Array(await out.arrayBuffer()), original);
 });
 
-test("stampTime keeps the name and only moves the clock", () => {
+test("prepareForShare can keep a name, which is how the print stays \"00-\"", () => {
   const print = new File(["x"], "00-millie-time-2026-08-22.png", { type: "image/png" });
-  const out = stampTime(print, 12345);
+  const out = prepareForShare(print, { position: 0, count: 9, time: 12345, name: print.name });
   assert.equal(out.name, "00-millie-time-2026-08-22.png");
   assert.equal(out.lastModified, 12345);
+});
+
+
+// --- weight, the one signal Messages acts on -------------------------------
+
+const MB = 1048576;
+const ladder = (mb, step = 1, budget = 500) =>
+  weightLadder(mb.map((m) => m * MB), { stepBytes: step * MB, budgetBytes: budget * MB });
+
+test("weightLadder makes every file outweigh the one before it", () => {
+  const run = ladder([3, 0.1, 2, 5, 1]);
+  const mb = run.targets.map((t) => t / MB);
+  assert.deepEqual(mb, [3, 4, 5, 6, 7]);
+  for (let i = 1; i < mb.length; i++) assert.ok(mb[i] >= mb[i - 1] + 1);
+});
+
+test("weightLadder never shrinks a file — it can only pad", () => {
+  const sizes = [1, 9, 2, 3];
+  const run = ladder(sizes);
+  run.targets.forEach((target, i) => {
+    assert.ok(target >= sizes[i] * MB, `#${i} must not be asked to get smaller`);
+  });
+});
+
+test("weightLadder leaves an already-ascending week alone", () => {
+  const run = ladder([1, 3, 6, 20]);
+  assert.deepEqual(run.targets.map((t) => t / MB), [1, 3, 6, 20], "no padding, nothing to fix");
+  assert.equal(run.total / MB, 30);
+});
+
+test("weightLadder narrows the margin rather than giving up on a tight budget", () => {
+  const wide = ladder([5, 1, 1, 1], 1, 500);
+  assert.equal(wide.step / MB, 1);
+
+  // 5, 6, 7, 8 = 26 MB at a 1 MB margin. Force it under that.
+  const tight = weightLadder([5, 1, 1, 1].map((m) => m * MB),
+    { stepBytes: 1 * MB, budgetBytes: 24 * MB });
+  assert.ok(tight, "a narrower margin still orders everything that isn't a near-tie");
+  assert.ok(tight.step < 1 * MB);
+  assert.ok(tight.total <= 24 * MB);
+});
+
+test("weightLadder gives up rather than build a message too big to send", () => {
+  // A 40 MB clip first means everything after it has to clear 40 MB.
+  assert.equal(weightLadder([40, 1, 1, 1, 1].map((m) => m * MB),
+    { stepBytes: 1 * MB, budgetBytes: 60 * MB }), null,
+    "a 200 MB message that fails to send is worse than one that arrives shuffled");
+});
+
+test("weightLadder handles an empty week", () => {
+  const run = ladder([]);
+  assert.deepEqual(run.targets, []);
+  assert.equal(run.total, 0);
+});
+
+test("shareOrder sends clips last, because they cannot be padded past", () => {
+  const items = [
+    { id: "mon", kind: "photo", day: "2026-08-16", takenAt: at("2026-08-16", 9) },
+    { id: "clip", kind: "video", day: "2026-08-16", takenAt: at("2026-08-16", 12) },
+    { id: "tue", kind: "photo", day: "2026-08-17", takenAt: at("2026-08-17", 9) },
+  ];
+  assert.deepEqual(shareOrder(items, week).map((i) => i.id), ["mon", "tue", "clip"]);
+  assert.deepEqual(shareOrder(items, week, false).map((i) => i.id), ["mon", "clip", "tue"],
+    "and stays in place when the config says so");
 });

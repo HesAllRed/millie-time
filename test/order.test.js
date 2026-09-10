@@ -73,7 +73,8 @@ test("the week sends oldest first, day by day, whatever order she picked in", op
     const [sent] = await app.payloads();
     assert.ok(sent, "the ladder got as far as an actual share");
     assert.deepEqual(shotOrder(sent.files),
-      ["mon-am", "mon-pm", "tue-am", "tue-clip", "wed-am", "wed-noon"]);
+      ["mon-am", "mon-pm", "tue-am", "wed-am", "wed-noon", "tue-clip"],
+      "the week in order, and the clip last — it is too heavy to pad past");
     assert.match(sent.files[0].name, /^00-/, "and the print leads, so it reads first");
   });
 });
@@ -268,5 +269,63 @@ test("the heavy probe is a real week's shape: 11 files, 28 MB, only size varying
     // The screenshot stand-ins have to be readable as PNGs, date and all.
     assert.match(sent.files[0].name, /\.png$/);
     assert.match(sent.files[2].name, /\.png$/);
+  });
+});
+
+
+test("every file is padded to outweigh the one before it", options, async () => {
+  await withApp(async (app) => {
+    // Deliberately inverted: the heaviest photo first, which is the case that
+    // costs the most padding and the one a naive ladder gets wrong.
+    const specs = await makeFixtures(app.page, dir, [
+      { label: "heavy-first", takenAt: at(3, 9, 0), weight: 900 },
+      { label: "light",       takenAt: at(2, 9, 0), weight: 20 },
+      { label: "middling",    takenAt: at(1, 9, 0), weight: 300 },
+    ]);
+
+    await app.pick(specs.map((s) => s.file));
+    await app.write({ [isoBack(3)]: "monday" });
+    await app.toDeck();
+    await app.share();
+
+    const [sent] = await app.payloads();
+    assert.deepEqual(shotOrder(sent.files), ["heavy-first", "light", "middling"]);
+
+    for (let i = 1; i < sent.files.length; i++) {
+      assert.ok(sent.files[i].size > sent.files[i - 1].size,
+        `#${i} (${sent.files[i].size}) must outweigh #${i - 1} (${sent.files[i - 1].size}) ` +
+        "or Messages lands it first");
+    }
+  });
+});
+
+test("padding is trailing bytes, so the photo still decodes and keeps its date", options, async () => {
+  await withApp(async (app) => {
+    const takenAt = at(2, 14, 30);
+    const specs = await makeFixtures(app.page, dir, [
+      { label: "small", takenAt: at(3, 9, 0), weight: 20 },
+      { label: "padded", takenAt, weight: 30 },
+    ]);
+
+    await app.pick(specs.map((s) => s.file));
+    await app.toDeck();
+    await app.share();
+
+    const [sent] = await app.payloads();
+    const padded = sent.files.find((f) => f.from === "padded");
+    assert.ok(padded.size > 0);
+    assert.equal(padded.taken, takenAt.getTime(), "the capture date survives the padding");
+
+    // The real proof: it is still a decodable image, not a corrupted blob.
+    const decoded = await app.page.eval(`
+      const share = window.__shares[0];
+      const file = share.files.find((f) => f.name === ${JSON.stringify(padded.name)});
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.src = url;
+      try { await img.decode(); } finally { URL.revokeObjectURL(url); }
+      return { w: img.naturalWidth, h: img.naturalHeight };
+    `);
+    assert.ok(decoded.w > 0 && decoded.h > 0, "a padded photo must still be a photo");
   });
 });

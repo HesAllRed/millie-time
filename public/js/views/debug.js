@@ -10,7 +10,7 @@ import { h, clear } from "../ui.js";
 import { state, set, days, unsortedCount } from "../state.js";
 import { copyText, runShareLadder } from "../share.js";
 import { buildProbe, buildHeavyProbe } from "../probe.js";
-import { formatBytes, orderedItems, captureSequence } from "../compose.js";
+import { formatBytes, shareOrder, captureSequence, weightLadder } from "../compose.js";
 import { orderedName } from "../media.js";
 
 /**
@@ -18,10 +18,22 @@ import { orderedName } from "../media.js";
  * after this, the manifest says whether we sent them wrong or Messages
  * reordered them — which is the difference between our bug and Apple's.
  */
+const MB = 1048576;
+
 function shareManifest() {
   const week = days();
-  const ordered = orderedItems(state.items, week);
+  const ordered = shareOrder(state.items, week, cfg.videosLast);
   const stamps = captureSequence(ordered, week[week.length - 1]);
+
+  // Weight is the signal Messages actually acts on, so the manifest has to show
+  // the padded size rather than the size on disk — that is what will race.
+  const ladder = cfg.renumberOnShare && cfg.orderByWeight
+    ? weightLadder(ordered.map((i) => i.file.size), {
+        stepBytes: cfg.weightStepMb * MB,
+        budgetBytes: cfg.maxPayloadMb * MB,
+      })
+    : null;
+
   return ordered.map((item, i) => ({
     pos: i + 1,
     name: orderedName(item.file, i + 1, ordered.length),
@@ -32,7 +44,21 @@ function shareManifest() {
     dateSource: item.kind === "video" ? "video"
       : item.hasExifDate ? "exif"
       : item.container ? `ours/${item.container}` : "none",
+    weight: ladder ? ladder.targets[i] : item.file.size,
+    padded: ladder ? ladder.targets[i] > item.file.size : false,
   }));
+}
+
+/** The ladder, or why there isn't one. */
+function weightLine() {
+  const rows = shareManifest();
+  if (!rows.length) return "nothing to send yet";
+  const total = rows.reduce((sum, r) => sum + r.weight, 0);
+  const real = state.items.reduce((sum, i) => sum + i.file.size, 0);
+  if (!cfg.orderByWeight) return `off · ${formatBytes(total)}`;
+  const padded = rows.filter((r) => r.padded).length;
+  if (!padded && total <= real) return `no padding needed · ${formatBytes(total)}`;
+  return `${padded} padded · ${formatBytes(real)} → ${formatBytes(total)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -168,9 +194,9 @@ function diagnosticsText() {
       `poster=${item.kind === "video" ? (item.poster ? "ok" : "FAILED") : "-"}`);
   }
   lines.push("");
-  lines.push("share order:");
+  lines.push(`share order (weight: ${weightLine()}):`);
   for (const row of shareManifest()) {
-    lines.push(`  ${row.pos} ${row.name} ${row.day} taken=${row.taken.toISOString()} (${row.dateSource})`);
+    lines.push(`  ${row.pos} ${row.name} ${row.day} ${(row.weight / MB).toFixed(2)}MB${row.padded ? "*" : ""} taken=${row.taken.toISOString()} (${row.dateSource})`);
   }
   lines.push("");
   lines.push("log:");
@@ -220,7 +246,7 @@ export function renderDebug(root) {
   }
   for (const row of manifest) {
     order.append(h("div", { class: "dbg-row" },
-      h("span", { text: `${row.pos}. ${row.name}` }),
+      h("span", { text: `${row.pos}. ${row.name}  ${(row.weight / MB).toFixed(1)}MB${row.padded ? "*" : ""}` }),
       h("b", { class: row.dateSource === "none" ? "bad" : "", text: `${row.day} · ${row.dateSource}` })));
   }
 
@@ -273,6 +299,10 @@ export function renderDebug(root) {
           "1 to 11 means size isn't it either · the small ones arriving first means it's a " +
           "race they win · a different order each send means a race with no rule. " +
           "Preparing it takes a few seconds and holds 28 MB, so it only builds when you ask." }));
+
+  order.append(h("div", { class: "dbg-row" },
+    h("span", { text: "weight ladder" }),
+    h("b", { class: /NO LADDER/.test(weightLine()) ? "bad" : "", text: weightLine() })));
 
   root.append(
     h("p", { class: "brandline", text: `Debug · v${cfg.version}` }),

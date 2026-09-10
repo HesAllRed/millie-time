@@ -5,6 +5,7 @@
 // numbered, which makes a screenshot of the deck worth looking at.
 
 import { writeFile, mkdir, rm } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { withExifDate, withComment, MARKER } from "./exif-writer.mjs";
 
@@ -109,6 +110,13 @@ export async function makeFixtures(page, dir, specs) {
       // silently falls back to the export timestamp.
       if (spec.exif !== false && spec.takenAt) bytes = withExifDate(bytes, spec.takenAt);
       bytes = withComment(bytes, spec.label);
+    }
+
+    // `weight` (in KB) makes a fixture heavy enough to exercise the ladder,
+    // the same way the app pads: trailing bytes the decoder ignores.
+    if (spec.weight) {
+      const extra = spec.weight * 1024 - bytes.length;
+      if (extra > 0) bytes = Buffer.concat([bytes, randomBytes(extra)]);
     }
 
     const file = path.join(dir, `pick${i + 1}-${spec.label}.${png ? "png" : "jpg"}`);
