@@ -185,7 +185,7 @@ every signal a receiving app might sort by is set to say the same thing.
 | Array order | day by day, oldest first, strays last |
 | Filename | `01`, `02`, … padded to the width of the count, print stays `00-` |
 | File timestamp | ascending, one second apart, overriding Safari's export stamp |
-| Capture date | already in agreement — it is what we sorted on — *except* for photos carrying no EXIF date, where we write one in that lands them exactly where we put them |
+| Capture date | already in agreement — it is what we sorted on — *except* for photos carrying no date at all, where we write one in that lands them exactly where we put them (JPEG via APP1, PNG via `eXIf`) |
 
 That last row is the new part. A real capture date is the truth, the recipient's
 Photos app files by it, and it is never overwritten. A photo that has none is
@@ -193,6 +193,15 @@ invisible to any app sorting by "date taken", which is exactly how one ends up
 somewhere arbitrary. The synthetic date goes in as a spliced APP1 segment built
 from `Blob` slices, so a twenty-photo week costs twenty `File` objects rather
 than sixty megabytes, and it is prepared ahead of the tap like the print is.
+
+**Screenshots were the hole.** A week is not all camera photos — some are
+screenshots, some were saved to the roll out of Snapchat. An iOS screenshot is a
+**PNG**, and the app read EXIF out of JPEGs only: it could neither read a date
+off one nor write one into it, so it went out as the single row in the share
+order reading `none`, with nothing for a date-sorting app to place it by. PNG
+carries the same EXIF bytes in an `eXIf` chunk after `IHDR`, so it now reads and
+writes both containers, picked by magic number rather than by the filename or
+the type iOS claims.
 
 **Testing it.** Everything up to `navigator.share()` is now covered end-to-end in
 a real browser (`test/order.test.js`, driving Chromium over the DevTools protocol

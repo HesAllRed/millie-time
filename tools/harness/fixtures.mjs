@@ -14,7 +14,7 @@ const PALETTE = ["#e8734a", "#4a8fe8", "#5fbf7a", "#c264d4", "#e8b84a", "#4ac6d4
  * Draw one numbered card and hand back its JPEG bytes.
  * Chromium encodes it, so we never have to hand-roll a JPEG.
  */
-async function drawJpeg(page, { label, sub, colour }) {
+async function drawImage(page, { label, sub, colour, type = "image/jpeg" }) {
   const dataUrl = await page.eval(`
     const c = document.createElement("canvas");
     c.width = 480; c.height = 640;
@@ -28,7 +28,7 @@ async function drawJpeg(page, { label, sub, colour }) {
     x.fillText(${JSON.stringify(label)}, c.width / 2, c.height / 2 - 40);
     x.font = "28px monospace";
     x.fillText(${JSON.stringify(sub)}, c.width / 2, c.height / 2 + 130);
-    return c.toDataURL("image/jpeg", 0.9);
+    return c.toDataURL(${JSON.stringify(type)}, 0.9);
   `);
   return Buffer.from(dataUrl.split(",")[1], "base64");
 }
@@ -89,17 +89,29 @@ export async function makeFixtures(page, dir, specs) {
       continue;
     }
 
-    let bytes = await drawJpeg(page, {
+    // A screenshot is a PNG with no metadata of any kind — the case the app
+    // could neither read a date from nor write one into.
+    const png = spec.kind === "screenshot";
+
+    let bytes = await drawImage(page, {
       label: spec.label,
       sub: stamp,
       colour: PALETTE[i % PALETTE.length],
+      type: png ? "image/png" : "image/jpeg",
     });
-    // `exif: false` models a photo iOS handed over stripped — the case that
-    // silently falls back to the export timestamp.
-    if (spec.exif !== false && spec.takenAt) bytes = withExifDate(bytes, spec.takenAt);
-    bytes = withComment(bytes, spec.label);
 
-    const file = path.join(dir, `pick${i + 1}-${spec.label}.jpg`);
+    if (png) {
+      // Trailing bytes after IEND: every decoder ignores them, and it keeps the
+      // marker out of the chunk stream the app splices into.
+      bytes = Buffer.concat([bytes, Buffer.from(`${MARKER}${spec.label}\0`, "ascii")]);
+    } else {
+      // `exif: false` models a photo iOS handed over stripped — the case that
+      // silently falls back to the export timestamp.
+      if (spec.exif !== false && spec.takenAt) bytes = withExifDate(bytes, spec.takenAt);
+      bytes = withComment(bytes, spec.label);
+    }
+
+    const file = path.join(dir, `pick${i + 1}-${spec.label}.${png ? "png" : "jpg"}`);
     await writeFile(file, bytes);
     out.push({ ...spec, file, kind: "photo" });
   }

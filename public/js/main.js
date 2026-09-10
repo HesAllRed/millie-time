@@ -147,14 +147,15 @@ function payload() {
 
   const files = ordered.map((item, i) => {
     if (!cfg.renumberOnShare) return item.file;
-    // Only ever for a JPEG that doesn't already say when it was taken. A real
+    // Only ever for a file that doesn't already say when it was taken. A real
     // capture date is the truth and stays untouched.
-    const captureDate = item.jpeg && !item.hasExifDate ? stamps[i] : null;
+    const captureDate = item.container && !item.hasExifDate ? stamps[i] : null;
     if (captureDate) invented++;
     return prepareForShare(item.file, {
       position: i + 1,
       count: ordered.length,
       time: base + (i + 1) * 1000,
+      container: item.container,
       captureDate,
     });
   });

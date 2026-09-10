@@ -6,7 +6,7 @@ import {
 } from "../public/js/compose.js";
 import { prepareForShare, orderedName, stampTime } from "../public/js/media.js";
 import { windowDays, isoDay } from "../public/js/dates.js";
-import { fromJpeg } from "../public/js/exif.js";
+import { fromJpeg, fromPng, isPng } from "../public/js/exif.js";
 
 const cfg = { printTitle: "This week", name: "Millie Time" };
 const week = windowDays("2026-08-21", 8);
@@ -260,17 +260,79 @@ test("captureSequence is strictly ascending, so date order IS send order", () =>
   }
 });
 
-test("prepareForShare writes a capture date into a photo that had none", async () => {
+test("prepareForShare writes a capture date into a JPEG that had none", async () => {
   const bare = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], "IMG.jpg", { type: "image/jpeg" });
   assert.equal(fromJpeg(await bare.arrayBuffer()), null, "nothing to read to begin with");
 
   const when = at("2026-08-16", 23);
-  const out = prepareForShare(bare, { position: 1, count: 4, time: 5, captureDate: when });
+  const out = prepareForShare(bare, { position: 1, count: 4, time: 5, container: "jpeg", captureDate: when });
   const read = fromJpeg(await out.arrayBuffer());
   assert.ok(read, "and now a date-sorting app has something to sort by");
   assert.equal(read.getTime(), when.getTime());
   assert.equal(out.name, "01.jpg");
 });
+
+// An iOS screenshot is a PNG with no date in it anywhere — the one file in a
+// week that nothing downstream could place.
+test("prepareForShare writes a capture date into a screenshot", async () => {
+  const png = new File([blankPng()], "IMG.png", { type: "image/png" });
+  assert.equal(fromPng(await png.arrayBuffer()), null, "a screenshot says nothing about when it was taken");
+
+  const when = at("2026-08-16", 23);
+  const out = prepareForShare(png, { position: 2, count: 4, time: 5, container: "png", captureDate: when });
+  const read = fromPng(await out.arrayBuffer());
+  assert.ok(read, "and now it does");
+  assert.equal(read.getTime(), when.getTime());
+  assert.equal(out.name, "02.png");
+});
+
+test("the spliced PNG is still a valid PNG, chunk order and all", async () => {
+  const out = prepareForShare(new File([blankPng()], "IMG.png", { type: "image/png" }),
+    { position: 1, count: 4, time: 5, container: "png", captureDate: at("2026-08-16", 23) });
+  const bytes = new Uint8Array(await out.arrayBuffer());
+
+  assert.ok(isPng(bytes.buffer), "signature and IHDR untouched");
+  const chunks = [];
+  let at_ = 8;
+  const view = new DataView(bytes.buffer);
+  while (at_ + 8 <= bytes.length) {
+    const length = view.getUint32(at_);
+    const type = String.fromCharCode(...bytes.subarray(at_ + 4, at_ + 8));
+    chunks.push(type);
+    // A wrong CRC is the failure a decoder actually rejects, so check ours.
+    if (type === "eXIf") {
+      assert.equal(view.getUint32(at_ + 8 + length), crc32Of(bytes.subarray(at_ + 4, at_ + 8 + length)),
+        "eXIf CRC must be right or decoders drop the chunk");
+    }
+    at_ += 12 + length;
+  }
+  assert.deepEqual(chunks, ["IHDR", "eXIf", "IEND"], "eXIf goes after IHDR, before the pixels");
+});
+
+/** Signature + IHDR + IEND: the smallest thing that is structurally a PNG. */
+function blankPng() {
+  const ihdr = new Uint8Array(25);
+  const view = new DataView(ihdr.buffer);
+  view.setUint32(0, 13);
+  ihdr.set([0x49, 0x48, 0x44, 0x52], 4);            // "IHDR"
+  view.setUint32(8, 1);
+  view.setUint32(12, 1);
+  return new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ...ihdr,
+    0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+  ]);
+}
+
+/** An independent CRC32, so the test isn't checking the writer against itself. */
+function crc32Of(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let k = 0; k < 8; k++) crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
 
 test("prepareForShare leaves the bytes alone when no capture date is given", async () => {
   const original = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);

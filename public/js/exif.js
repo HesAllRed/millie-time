@@ -61,6 +61,34 @@ function readAsciiTag(view, tiff, entry, le) {
 }
 
 /**
+ * Read a capture date out of a TIFF block — the shape EXIF takes wherever it
+ * is carried. JPEG wraps it in an APP1 segment; PNG puts the same bytes in an
+ * eXIf chunk.
+ *
+ * @param {DataView} view
+ * @param {number} tiff  offset of the TIFF header ("II" or "MM")
+ */
+function fromTiff(view, tiff) {
+  if (tiff + 8 > view.byteLength) return null;
+  const order = view.getUint16(tiff);
+  if (order !== 0x4949 && order !== 0x4d4d) return null;
+  const le = order === 0x4949;
+  if (view.getUint16(tiff + 2, le) !== 42) return null;
+
+  const ifd0 = readIfd(view, tiff, tiff + view.getUint32(tiff + 4, le), le);
+
+  const ptr = ifd0.get(TAG_EXIF_IFD_POINTER);
+  if (ptr) {
+    const exif = readIfd(view, tiff, tiff + ptr.valueOffset, le);
+    for (const tag of [TAG_DATETIME_ORIGINAL, TAG_DATETIME_DIGITIZED]) {
+      const parsed = parseExifDate(readAsciiTag(view, tiff, exif.get(tag), le) || "");
+      if (parsed) return parsed;
+    }
+  }
+  return parseExifDate(readAsciiTag(view, tiff, ifd0.get(TAG_DATETIME), le) || "");
+}
+
+/**
  * Pull DateTimeOriginal out of a JPEG's EXIF block.
  * @param {ArrayBuffer} buffer  the head of the file is enough (~256KB)
  * @returns {Date|null}
@@ -79,26 +107,49 @@ export function fromJpeg(buffer) {
     if (len < 2) break;
 
     if (marker === 0xe1 && i + 10 <= view.byteLength && ascii(view, i + 4, 4) === "Exif") {
-      const tiff = i + 10;
-      if (tiff + 8 > view.byteLength) return null;
-      const order = view.getUint16(tiff);
-      if (order !== 0x4949 && order !== 0x4d4d) return null;
-      const le = order === 0x4949;
-      if (view.getUint16(tiff + 2, le) !== 42) return null;
-
-      const ifd0 = readIfd(view, tiff, tiff + view.getUint32(tiff + 4, le), le);
-
-      const ptr = ifd0.get(TAG_EXIF_IFD_POINTER);
-      if (ptr) {
-        const exif = readIfd(view, tiff, tiff + ptr.valueOffset, le);
-        for (const tag of [TAG_DATETIME_ORIGINAL, TAG_DATETIME_DIGITIZED]) {
-          const parsed = parseExifDate(readAsciiTag(view, tiff, exif.get(tag), le) || "");
-          if (parsed) return parsed;
-        }
-      }
-      return parseExifDate(readAsciiTag(view, tiff, ifd0.get(TAG_DATETIME), le) || "");
+      return fromTiff(view, i + 10);
     }
     i += 2 + len;
+  }
+  return null;
+}
+
+// PNG. Signature, then chunks: length(4) type(4) data(length) crc(4). IHDR is
+// always first and always 13 bytes of data, which pins the one offset we need.
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+export const PNG_AFTER_IHDR = 8 + 25;
+
+/**
+ * Is this really a PNG, with the IHDR the spec requires first?
+ *
+ * Both halves matter: `PNG_AFTER_IHDR` is a fixed offset we splice at, and it
+ * is only fixed because IHDR is mandatory, first, and 13 bytes long.
+ */
+export function isPng(buffer) {
+  if (buffer.byteLength < PNG_AFTER_IHDR) return false;
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < PNG_SIGNATURE.length; i++) if (bytes[i] !== PNG_SIGNATURE[i]) return false;
+  return String.fromCharCode(bytes[12], bytes[13], bytes[14], bytes[15]) === "IHDR";
+}
+
+/**
+ * Pull a capture date out of a PNG's eXIf chunk.
+ *
+ * iOS screenshots are PNGs and carry no date at all — but a PNG that has been
+ * through something else may well have one, and reading it beats falling back
+ * to a timestamp Safari rewrote on export.
+ */
+export function fromPng(buffer) {
+  if (!isPng(buffer)) return null;
+  const view = new DataView(buffer);
+  let at = 8;
+  while (at + 8 <= view.byteLength) {
+    const length = view.getUint32(at);
+    const type = ascii(view, at + 4, 4);
+    if (type === "eXIf") return fromTiff(view, at + 8);
+    if (type === "IDAT" || type === "IEND") break;   // metadata lives before the pixels
+    at += 12 + length;
+    if (length < 0 || at <= 0) break;                // malformed; stop rather than spin
   }
   return null;
 }
@@ -178,6 +229,7 @@ export function fromLastModified(ms, now = Date.now()) {
 // ---------------------------------------------------------------------------
 
 const pad2 = (n) => String(n).padStart(2, "0");
+const TIFF_BYTES = 64;
 
 /** Date -> "2026:08:21 14:03:57", the only shape EXIF understands. */
 export function exifDateString(d) {
@@ -200,19 +252,13 @@ export function exifDateString(d) {
  * @param {Date} when
  * @returns {Uint8Array} ready to splice in immediately after SOI
  */
-export function exifApp1(when) {
+export function exifTiff(when) {
   const SUB_IFD_AT = 26;
   const STRING_AT = 44;
-  const TIFF_BYTES = 64;
 
-  const out = new Uint8Array(10 + TIFF_BYTES);
+  const out = new Uint8Array(TIFF_BYTES);
   const view = new DataView(out.buffer);
-
-  view.setUint16(0, 0xffe1);                      // APP1
-  view.setUint16(2, 8 + TIFF_BYTES);              // length, including itself
-  out.set([0x45, 0x78, 0x69, 0x66, 0, 0], 4);     // "Exif\0\0"
-
-  const tiff = 10;
+  const tiff = 0;
   out.set([0x49, 0x49], tiff);                    // little-endian
   view.setUint16(tiff + 2, 42, true);
   view.setUint32(tiff + 4, 8, true);              // IFD0 starts at 8
@@ -233,6 +279,52 @@ export function exifApp1(when) {
 
   const text = exifDateString(when);
   for (let i = 0; i < text.length; i++) out[tiff + STRING_AT + i] = text.charCodeAt(i);
+  return out;
+}
+
+/** The same block wrapped as a JPEG APP1 segment, to splice in after SOI. */
+export function exifApp1(when) {
+  const tiff = exifTiff(when);
+  const out = new Uint8Array(10 + tiff.length);
+  const view = new DataView(out.buffer);
+  view.setUint16(0, 0xffe1);                      // APP1
+  view.setUint16(2, 8 + tiff.length);             // length, including itself
+  out.set([0x45, 0x78, 0x69, 0x66, 0, 0], 4);     // "Exif\0\0"
+  out.set(tiff, 10);
+  return out;
+}
+
+let crcTable = null;
+
+function crc32(bytes) {
+  if (!crcTable) {
+    crcTable = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      crcTable[n] = c;
+    }
+  }
+  let crc = 0xffffffff;
+  for (const byte of bytes) crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * The same block as a PNG eXIf chunk, to splice in after IHDR.
+ *
+ * This is the screenshot case. An iOS screenshot is a PNG with no date in it
+ * anywhere, so it is the one file in a week that nothing downstream can place —
+ * it was the single row reading "none" in the share order.
+ */
+export function exifPngChunk(when) {
+  const tiff = exifTiff(when);
+  const out = new Uint8Array(12 + tiff.length);
+  const view = new DataView(out.buffer);
+  view.setUint32(0, tiff.length);
+  out.set([0x65, 0x58, 0x49, 0x66], 4);           // "eXIf"
+  out.set(tiff, 8);
+  view.setUint32(8 + tiff.length, crc32(out.subarray(4, 8 + tiff.length)));
   return out;
 }
 
