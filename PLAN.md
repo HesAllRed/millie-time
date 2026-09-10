@@ -240,9 +240,30 @@ also why the eleven-file probe arrives 1–11 every time: measured, its real
 images are 0.28–0.51 MB, a spread of 0.23 MB, so every one of them is a tie and
 the array order stands.
 
-The lever that remains, then, is the real weight of the pixels: re-encode the
-week to a common size and every photo becomes a tie. That is a decision about
-what the family receives, not a bug fix.
+**So: make every photo a tie.** Each one is decoded, drawn down to a common long
+edge and re-encoded at whatever quality lands it near a common size, at intake,
+behind the progress line she is already watching. The week stops being a race
+and goes back to being a list.
+
+The threshold looks absolute rather than proportional — photos 0.3 MB apart
+arrived shuffled, and the probe spans 0.23 MB and never does — so the target has
+to be low enough that the *whole* week fits inside that window, including the
+small ones, which cannot be brought up: we never upscale a photo to make it
+heavier. At 1280px / 200 KB a saved Snapchat picture and a camera original both
+land under a quarter of a megabyte. Measured over a week shaped like hers, nine
+photos from a 640×480 app-save to 12 MP originals: 20, 199, 198, 193, 192, 190,
+198, 192, 199 KB — a 179 KB spread, and 14.7 MB becomes 1.54 MB.
+
+The cost is worth stating plainly: the family receives phone-sized photos rather
+than originals. On a screen they are the same picture. Cropped or printed they
+are not. It is roughly what WhatsApp does to a photo by default, and it is a
+config line — `resizeForShare: false` sends originals and accepts the shuffle.
+
+A canvas re-encode drops every scrap of EXIF, so the capture date is spliced
+back in afterwards; it is the one piece the recipient's Photos app needs to file
+the picture under the day it happened. Video is never re-encoded — there is no
+practical way to do it in a browser — so a clip still loses the race and still
+goes last.
 
 Clips go last, and are left out of the ladder entirely. A 29 MB video mid-week
 would mean padding every photo after it past 29 MB — a message that will not

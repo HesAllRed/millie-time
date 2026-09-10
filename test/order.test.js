@@ -41,9 +41,19 @@ after(() => rm(dir, { recursive: true, force: true }));
 /** iOS refuses { files, text } together, so the ladder lands on rung 2. */
 const IOS_ISH = { filesWithText: false, files: true, text: true };
 
-async function withApp(body) {
+/**
+ * Resizing is off unless a test asks for it.
+ *
+ * Not because it is unimportant — it is the fix — but because re-encoding a
+ * photo strips the JPEG comment the fixtures are identified by, which is
+ * exactly what it should do to any metadata that isn't the capture date. The
+ * tests below are about ordering and dates and predate it; the ones that
+ * exercise resizing turn it on and identify photos by the date instead.
+ */
+async function withApp(body, { resize = false } = {}) {
   const app = await openApp({ caps: IOS_ISH });
   try {
+    await app.configure({ resizeForShare: resize });
     return await body(app);
   } finally {
     await app.close();
@@ -361,4 +371,82 @@ test("a clip keeps the date it was filmed, even though it sends last", options, 
     assert.ok(photo.lastModified > clip.lastModified,
       "the photo really was taken later, and the dates say so");
   });
+});
+
+
+// --- resizing: the fix, and the only thing that moves the race --------------
+
+test("resizing lands every photo on the same weight, so all of them tie", options, async () => {
+  await withApp(async (app) => {
+    // The spread that breaks a real week: something saved out of an app, next
+    // to a camera original. Real pixels, so the re-encode has real work to do.
+    const specs = await makeFixtures(app.page, dir, [
+      { label: "app-save", takenAt: at(3, 9, 0), pixels: [640, 480] },
+      { label: "camera", takenAt: at(2, 9, 0), pixels: [3024, 4032] },
+      { label: "middling", takenAt: at(1, 9, 0), pixels: [1600, 1200] },
+    ]);
+
+    await app.pick(specs.map((s) => s.file));
+    await app.toDeck();
+    await app.share();
+
+    const [sent] = await app.payloads();
+    const photos = sent.files.filter((f) => !/^00-/.test(f.name));
+    assert.equal(photos.length, 3);
+
+    const kb = photos.map((f) => f.size / 1024);
+    const spread = Math.max(...kb) - Math.min(...kb);
+    // Photos ~0.3 MB apart arrived shuffled on a real week; the probe spans
+    // 0.23 MB and never does. The whole week has to fit inside that window.
+    assert.ok(spread < 250,
+      `every photo has to be a tie, but they span ${Math.round(spread)} KB: ${kb.map(Math.round)}`);
+
+    // And a week that used to weigh five megabytes now weighs well under two.
+    const total = photos.reduce((sum, f) => sum + f.size, 0);
+    assert.ok(total < 1024 * 1024, `${(total / 1048576).toFixed(2)} MB is too heavy to be ties`);
+  }, { resize: true });
+});
+
+test("a resized photo keeps the date it was taken", options, async () => {
+  await withApp(async (app) => {
+    const first = at(3, 9, 0);
+    const second = at(1, 14, 30);
+    const specs = await makeFixtures(app.page, dir, [
+      { label: "one", takenAt: first, pixels: [3024, 4032] },
+      { label: "two", takenAt: second, pixels: [640, 480] },
+    ]);
+
+    await app.pick(specs.map((s) => s.file));
+    await app.toDeck();
+    await app.share();
+
+    const [sent] = await app.payloads();
+    const photos = sent.files.filter((f) => !/^00-/.test(f.name));
+
+    // A canvas re-encode drops every scrap of EXIF, so the date has to be put
+    // back — it is what files the picture under the right day for the recipient.
+    assert.deepEqual(photos.map((f) => f.taken), [first.getTime(), second.getTime()],
+      "in send order, carrying the dates they were actually taken");
+    assert.deepEqual(photos.map((f) => f.lastModified), [first.getTime(), second.getTime()]);
+  }, { resize: true });
+});
+
+test("a clip is never re-encoded, and still sends last", options, async () => {
+  await withApp(async (app) => {
+    const specs = await makeFixtures(app.page, dir, [
+      { label: "photo", takenAt: at(1, 9, 0), pixels: [3024, 4032] },
+      { label: "clip", takenAt: at(3, 11, 0), kind: "video" },
+    ]);
+    const before = specs.find((s) => s.kind === "video");
+
+    await app.pick(specs.map((s) => s.file));
+    await app.toDeck();
+    await app.share();
+
+    const [sent] = await app.payloads();
+    const clip = sent.files[sent.files.length - 1];
+    assert.match(clip.name, /\.mov$/, "the clip is last, and still a clip");
+    assert.equal(clip.type, "video/quicktime", "we have no way to re-encode video, and do not try");
+    assert.ok(before, "fixture sanity");
+  }, { resize: true });
 });

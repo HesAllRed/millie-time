@@ -9,6 +9,7 @@ import {
 } from "./state.js";
 import { composeText, shareOrder, captureSequence, weightPlan } from "./compose.js";
 import { ingest, assignDays, stopVideo, prepareForShare } from "./media.js";
+import { shrinkAll } from "./resize.js";
 import { renderPrint } from "./print.js";
 import { copyText, runShareLadder, shareWords, sharePhotos } from "./share.js";
 import { renderIntake } from "./views/intake.js";
@@ -118,6 +119,19 @@ picker.addEventListener("change", async () => {
   try {
     const added = await ingest(fresh, (done, total) => set({ busy: { done, total } }));
     state.items = state.items.concat(added);
+
+    // Done here, while she is already watching a progress line, rather than
+    // inside the share tap — which has no time to spare — or on the deck,
+    // where it would stall the first thing she wants to do.
+    if (cfg.resizeForShare) {
+      const count = await shrinkAll(added, {
+        longEdge: cfg.shareLongEdge,
+        targetBytes: cfg.shareTargetKb * 1024,
+      }, (done, total) => set({ busy: { done, total, shrinking: true } }));
+      const managed = added.filter((i) => i.share).length;
+      record("resize", `${managed} of ${count} shrunk`);
+    }
+
     refreshWindow();
     assignDays(state.items, new Set(days()));
     saveSession();                       // the window moved; persist it with the captions
@@ -146,15 +160,20 @@ function payload() {
   // The print leads, keeping its descriptive "00-" name, and is the lightest
   // thing in the batch — which is exactly where the ladder wants it.
   const entries = ordered.map((item, i) => ({
-    file: item.file,
+    // The shrunk copy where there is one: a week of equal weights is a week of
+    // ties, and ties arrive in the order we sent them. See resize.js.
+    file: item.share || item.file,
     kind: item.kind,
-    container: item.container,
+    // A shrunk copy is always a JPEG, and already carries its date if it had one.
+    container: item.share ? "jpeg" : item.container,
+    hasExifDate: item.share ? !!item.takenAt : item.hasExifDate,
     // The truth, wherever the file knows it. Stamping "now" on everything is
     // what filed a clip from the 2nd under the 10th.
     time: stamps[i].getTime(),
     // Only ever for a file that doesn't already say when it was taken. A real
     // capture date is the truth and stays untouched.
-    captureDate: item.container && !item.hasExifDate ? stamps[i] : null,
+    captureDate: (item.share || item.container) && !(item.share ? item.takenAt : item.hasExifDate)
+      ? stamps[i] : null,
   }));
   if (printFile) entries.unshift({ file: printFile, name: printFile.name, time: Date.now() });
 
@@ -246,7 +265,9 @@ function renderBusy(root) {
   root.append(
     h("div", { class: "spacer" }),
     orb(true),
-    h("p", { class: "warmline centred", text: `iOS is getting your ${total} ${total === 1 ? "item" : "items"} ready…` }),
+    h("p", { class: "warmline centred", text: state.busy.shrinking
+      ? `Getting ${total} ${total === 1 ? "photo" : "photos"} ready to send…`
+      : `iOS is getting your ${total} ${total === 1 ? "item" : "items"} ready…` }),
     h("p", { class: "helper", text: `${done} of ${total}` }),
     h("div", { class: "spacer" })
   );
