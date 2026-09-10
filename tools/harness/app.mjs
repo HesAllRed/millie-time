@@ -134,6 +134,14 @@ export async function openApp({ headless = true, caps = {}, hash = "" } = {}) {
       `);
     },
 
+    /** Flip a config knob in the running app — it is a module singleton. */
+    async configure(patch) {
+      await page.eval(`
+        const cfg = (await import("/js/config.js")).default;
+        Object.assign(cfg, ${JSON.stringify(patch)});
+      `);
+    },
+
     async write(captions) {
       await page.eval(`
         const { state, saveSession } = await import("/js/state.js");

@@ -273,8 +273,12 @@ test("the heavy probe is a real week's shape: 11 files, 28 MB, only size varying
 });
 
 
-test("every file is padded to outweigh the one before it", options, async () => {
+// Padding is off by default: measured on a real week, iOS re-encodes images on
+// the way out and the padding goes with them. The mechanism is kept for a
+// target that does sort by the bytes it is handed, so it stays tested.
+test("with the ladder on, every file is padded to outweigh the one before it", options, async () => {
   await withApp(async (app) => {
+    await app.configure({ orderByWeight: true });
     // Deliberately inverted: the heaviest photo first, which is the case that
     // costs the most padding and the one a naive ladder gets wrong.
     const specs = await makeFixtures(app.page, dir, [
