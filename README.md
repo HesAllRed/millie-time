@@ -38,6 +38,7 @@ public/                    ← everything Cloudflare serves
     state.js               one store; views read, never mutate
     dates.js  exif.js  compose.js     pure, tested
     media.js  print.js  share.js
+    resize.js              re-encodes a week to a common weight, so it arrives in order
     probe.js               the on-device order test
     ui.js
     views/                 intake · sort · deck · send · debug

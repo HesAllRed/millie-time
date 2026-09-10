@@ -41,6 +41,35 @@ export default {
   // to say the same thing. Set false to hand the files over untouched.
   renumberOnShare: true,
 
+  // Re-encode photos to a common weight before sharing.
+  //
+  // This is what actually fixes the order. Messages lands attachments as their
+  // uploads finish, which tracks the real encoded weight of the image — but
+  // files within a few hundred kilobytes of each other tie, and a tie falls
+  // back to the order we handed them over in. Making every photo the same
+  // weight makes every photo a tie.
+  //
+  // The cost is that the family receives phone-sized photos rather than
+  // originals. On a screen they are the same picture; cropped or printed they
+  // are not. Set false to send originals and accept the shuffle.
+  resizeForShare: true,
+
+  // The long edge to draw down to, and roughly what each photo should weigh.
+  //
+  // The tie threshold looks absolute rather than proportional: photos ~0.3 MB
+  // apart arrived shuffled, and the eleven-file probe spans 0.23 MB and never
+  // does. So the target has to be low enough that the whole week fits inside
+  // that window — INCLUDING the small ones, which cannot be brought up, because
+  // we never upscale a photo to make it heavier. At 1280px/200 KB a saved
+  // Snapchat picture and a camera original both land under a quarter of a
+  // megabyte, and everything ties.
+  //
+  // Raise these for better photos and a wider spread of weights, which makes
+  // the ties — and so the order — less certain. Roughly what WhatsApp does to a
+  // photo by default, for reference.
+  shareLongEdge: 1280,
+  shareTargetKb: 200,
+
   // Pad files to ascend in weight, so that an app landing attachments in
   // upload-completion order lands them in the order the week reads.
   //
@@ -70,5 +99,5 @@ export default {
   videosLast: true,
 
   // Bumped on release; shown in the footer and on #debug.
-  version: "1.0.12",
+  version: "1.0.13",
 };

@@ -15,19 +15,32 @@ const PALETTE = ["#e8734a", "#4a8fe8", "#5fbf7a", "#c264d4", "#e8b84a", "#4ac6d4
  * Draw one numbered card and hand back its JPEG bytes.
  * Chromium encodes it, so we never have to hand-roll a JPEG.
  */
-async function drawImage(page, { label, sub, colour, type = "image/jpeg" }) {
+async function drawImage(page, { label, sub, colour, type = "image/jpeg", pixels = [480, 640] }) {
   const dataUrl = await page.eval(`
+    const [W, H] = ${JSON.stringify(pixels)};
     const c = document.createElement("canvas");
-    c.width = 480; c.height = 640;
+    c.width = W; c.height = H;
     const x = c.getContext("2d");
     x.fillStyle = ${JSON.stringify(colour)};
     x.fillRect(0, 0, c.width, c.height);
+    // Noise on anything camera-sized, so it encodes to a camera-sized file
+    // rather than compressing away to nothing.
+    if (W * H > 500000) {
+      for (let n = 0; n < (W * H) / 300; n++) {
+        x.fillStyle = "hsl(" + Math.random() * 360 + ",70%," + (20 + Math.random() * 55) + "%)";
+        x.fillRect(Math.random() * W, Math.random() * H, W / 90, H / 90);
+      }
+      x.fillStyle = ${JSON.stringify(colour)};
+      x.globalAlpha = 0.55;
+      x.fillRect(0, H / 2 - H / 6, W, H / 3);
+      x.globalAlpha = 1;
+    }
     x.fillStyle = "#ffffff";
-    x.font = "bold 220px sans-serif";
+    x.font = "bold " + Math.round(H / 3) + "px sans-serif";
     x.textAlign = "center";
     x.textBaseline = "middle";
     x.fillText(${JSON.stringify(label)}, c.width / 2, c.height / 2 - 40);
-    x.font = "28px monospace";
+    x.font = Math.round(H / 22) + "px monospace";
     x.fillText(${JSON.stringify(sub)}, c.width / 2, c.height / 2 + 130);
     return c.toDataURL(${JSON.stringify(type)}, 0.9);
   `);
@@ -99,6 +112,7 @@ export async function makeFixtures(page, dir, specs) {
       sub: stamp,
       colour: PALETTE[i % PALETTE.length],
       type: png ? "image/png" : "image/jpeg",
+      pixels: spec.pixels,
     });
 
     if (png) {
