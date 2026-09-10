@@ -125,8 +125,9 @@ picker.addEventListener("change", async () => {
     // where it would stall the first thing she wants to do.
     if (cfg.resizeForShare) {
       const count = await shrinkAll(added, {
-        longEdge: cfg.shareLongEdge,
+        pixels: cfg.sharePixels,
         targetBytes: cfg.shareTargetKb * 1024,
+        floorBytes: cfg.shareFloorKb * 1024,
       }, (done, total) => set({ busy: { done, total, shrinking: true } }));
       const managed = added.filter((i) => i.share).length;
       record("resize", `${managed} of ${count} shrunk`);

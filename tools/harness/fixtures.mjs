@@ -15,7 +15,7 @@ const PALETTE = ["#e8734a", "#4a8fe8", "#5fbf7a", "#c264d4", "#e8b84a", "#4ac6d4
  * Draw one numbered card and hand back its JPEG bytes.
  * Chromium encodes it, so we never have to hand-roll a JPEG.
  */
-async function drawImage(page, { label, sub, colour, type = "image/jpeg", pixels = [480, 640] }) {
+async function drawImage(page, { label, sub, colour, type = "image/jpeg", pixels = [480, 640], flat = false }) {
   const dataUrl = await page.eval(`
     const [W, H] = ${JSON.stringify(pixels)};
     const c = document.createElement("canvas");
@@ -25,7 +25,7 @@ async function drawImage(page, { label, sub, colour, type = "image/jpeg", pixels
     x.fillRect(0, 0, c.width, c.height);
     // Noise on anything camera-sized, so it encodes to a camera-sized file
     // rather than compressing away to nothing.
-    if (W * H > 500000) {
+    if (W * H > 500000 && !${JSON.stringify(flat)}) {
       for (let n = 0; n < (W * H) / 300; n++) {
         x.fillStyle = "hsl(" + Math.random() * 360 + ",70%," + (20 + Math.random() * 55) + "%)";
         x.fillRect(Math.random() * W, Math.random() * H, W / 90, H / 90);
@@ -113,6 +113,7 @@ export async function makeFixtures(page, dir, specs) {
       colour: PALETTE[i % PALETTE.length],
       type: png ? "image/png" : "image/jpeg",
       pixels: spec.pixels,
+      flat: spec.flat,
     });
 
     if (png) {
