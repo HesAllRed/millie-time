@@ -9,7 +9,7 @@ import cfg from "../config.js";
 import { h, clear } from "../ui.js";
 import { state, set, days, unsortedCount } from "../state.js";
 import { copyText, runShareLadder } from "../share.js";
-import { buildProbe } from "../probe.js";
+import { buildProbe, buildHeavyProbe } from "../probe.js";
 import { formatBytes, orderedItems, captureSequence } from "../compose.js";
 import { orderedName } from "../media.js";
 
@@ -57,6 +57,41 @@ function ensureProbe() {
       set({});
     })
     .catch((e) => { probeState = "failed"; record("probe", e); set({}); });
+}
+
+// The heavy probe is 28 MB, so it is never built unless she asks for it — but
+// it still has to be built BEFORE the tap that shares it, like everything else
+// that goes through the share sheet.
+let heavy = null;
+let heavyState = "idle";       // idle | building | ready | failed
+let heavyAt = 0;
+let heavyResult = null;
+
+function prepareHeavy() {
+  if (heavyState === "building") return;
+  heavyState = "building";
+  heavyAt = 0;
+  set({});
+  buildHeavyProbe((done) => { heavyAt = done; set({}); })
+    .then((built) => {
+      heavy = built;
+      heavyState = "ready";
+      record("heavy", `${built.files.length} files, ${(built.total / 1048576).toFixed(1)} MB`);
+      set({});
+    })
+    .catch((e) => { heavyState = "failed"; record("heavy", e); set({}); });
+}
+
+function sendHeavy() {
+  if (!heavy) return;
+  copyText(heavy.key);
+  runShareLadder({ files: heavy.files, text: "Millie Time heavy order test — these should read 1 to 11." })
+    .then((res) => {
+      heavyResult = res.outcome === "sent" ? `sent (rung ${res.rung})` : res.outcome;
+      record("heavy", heavyResult);
+      set({});
+    })
+    .catch((e) => { heavyResult = `failed: ${e.message}`; record("heavy", e); set({}); });
 }
 
 function sendProbe() {
@@ -209,12 +244,43 @@ export function renderDebug(root) {
           "4 5 6 1 2 3 means capture date · 2 1 4 3 6 5 means file timestamp. " +
           "The answer key is copied to your clipboard when you tap." }));
 
+  const heavyBox = h("div", { class: "dbg" });
+  heavyBox.append(h("div", { class: "dbg-row" },
+    h("span", { text: "eleven files, 28 MB" }),
+    h("b", { class: heavyState === "failed" ? "bad" : "", text:
+      heavyState === "building" ? `building ${heavyAt} of 11` : heavyState })));
+  if (heavy) {
+    heavyBox.append(h("div", { class: "dbg-row" },
+      h("span", { text: "actual size" }),
+      h("b", { text: `${(heavy.total / 1048576).toFixed(1)} MB` })));
+  }
+  if (heavyResult) {
+    heavyBox.append(h("div", { class: "dbg-row" },
+      h("span", { text: "last attempt" }), h("b", { text: heavyResult })));
+  }
+  heavyBox.append(h("button", {
+    class: "btn ghost sm", type: "button", style: "margin:10px 0 4px",
+    text: heavyState === "ready" ? "Send the heavy test"
+      : heavyState === "building" ? `Building ${heavyAt} of 11…`
+      : "Prepare the heavy test",
+    disabled: heavyState === "building",
+    onclick: heavyState === "ready" ? sendHeavy : prepareHeavy,
+  }));
+  heavyBox.append(h("p", { class: "helper", style: "text-align:left",
+    text: "The shape of a real week: eleven files, 28 MB, sizes from 160 KB to 5.8 MB. " +
+          "Here the filename, capture date and timestamp all agree with the order sent — " +
+          "only the sizes vary, and the two smallest are 9th and 10th. " +
+          "1 to 11 means size isn't it either · the small ones arriving first means it's a " +
+          "race they win · a different order each send means a race with no rule. " +
+          "Preparing it takes a few seconds and holds 28 MB, so it only builds when you ask." }));
+
   root.append(
     h("p", { class: "brandline", text: `Debug · v${cfg.version}` }),
     h("div", { class: "scroll" },
       h("p", { class: "dbg-h", text: "The week" }), week,
       h("p", { class: "dbg-h", text: "Share order" }), order,
       h("p", { class: "dbg-h", text: "Order test" }), probeBox,
+      h("p", { class: "dbg-h", text: "Heavy order test" }), heavyBox,
       h("p", { class: "dbg-h", text: "Capabilities" }), table,
       h("p", { class: "dbg-h", text: "Items" }), items,
       h("p", { class: "dbg-h", text: "Log" }),

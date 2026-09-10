@@ -220,3 +220,53 @@ test("a screenshot in the week goes out carrying a date like everything else", o
     }
   });
 });
+
+test("the heavy probe is a real week's shape: 11 files, 28 MB, only size varying", options, async () => {
+  await withApp(async (app) => {
+    await app.page.goto(`${app.url}/#debug`);
+    await app.page.waitFor(`(async () => [...document.querySelectorAll("button")]
+      .some((b) => b.textContent.includes("Prepare the heavy test")))()`,
+      { timeout: 20000, label: "the debug screen" });
+    await app.page.eval(`
+      [...document.querySelectorAll("button")]
+        .find((b) => b.textContent.includes("Prepare the heavy test")).click();
+    `);
+    await app.page.waitFor(`(async () => [...document.querySelectorAll("button")]
+      .some((b) => b.textContent.includes("Send the heavy test") && !b.disabled))()`,
+      { timeout: 120000, label: "the heavy probe to build" });
+
+    await app.page.eval(`
+      [...document.querySelectorAll("button")]
+        .find((b) => b.textContent.includes("Send the heavy test")).click();
+    `);
+    await app.page.waitFor("window.__shares.length > 0", { timeout: 60000, label: "the heavy probe to be shared" });
+
+    const [sent] = await app.payloads();
+    assert.equal(sent.files.length, 11);
+
+    const total = sent.files.reduce((sum, f) => sum + f.size, 0);
+    assert.ok(total > 27 * 1024 * 1024 && total < 30 * 1024 * 1024,
+      `should weigh about what a real week weighs, got ${(total / 1048576).toFixed(1)} MB`);
+
+    // Every signal agrees with the order sent — that is the whole point here,
+    // so that any deviation on the device is attributable to size alone.
+    const names = sent.files.map((f) => f.name);
+    assert.deepEqual([...names].sort(), names, "filenames ascend with the order sent");
+    for (let i = 1; i < sent.files.length; i++) {
+      assert.ok(sent.files[i].taken > sent.files[i - 1].taken, `capture date #${i}`);
+      assert.ok(sent.files[i].lastModified > sent.files[i - 1].lastModified, `timestamp #${i}`);
+    }
+
+    // …and the sizes deliberately do not, with the two smallest photos late.
+    const mb = sent.files.map((f) => f.size / 1048576);
+    const bySize = mb.map((m, i) => [m, i + 1]).sort((a, b) => a[0] - b[0]).map((pair) => pair[1]);
+    assert.notDeepEqual(bySize, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      "if size order matched send order the probe would prove nothing");
+    assert.ok(mb[8] < 0.5 && mb[9] < 0.8, "the small ones sit at 9 and 10, where a race would show");
+    assert.ok(Math.max(...mb) > 5, "and a 5.8 MB camera original is in there to lose that race");
+
+    // The screenshot stand-ins have to be readable as PNGs, date and all.
+    assert.match(sent.files[0].name, /\.png$/);
+    assert.match(sent.files[2].name, /\.png$/);
+  });
+});

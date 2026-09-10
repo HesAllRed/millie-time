@@ -203,6 +203,15 @@ carries the same EXIF bytes in an `eXIf` chunk after `IHDR`, so it now reads and
 writes both containers, picked by magic number rather than by the filename or
 the type iOS claims.
 
+**Size is the variable the small probe does not test.** The six-photo probe
+lands in order, which settles that Messages honours the array we hand it and
+ignores filename, capture date and timestamp alike. A real week does not land in
+order, and the difference is not metadata: it is eleven files and 28 MB, with a
+36× spread of sizes — a 161 KB save off Snapchat next to a 5.8 MB camera
+original. So there is a second, heavier probe in the same shape: every signal
+agrees, only the sizes vary, and the two smallest sit at positions 9 and 10
+where a race would show. It is built only on request, because it holds 28 MB.
+
 **Testing it.** Everything up to `navigator.share()` is now covered end-to-end in
 a real browser (`test/order.test.js`, driving Chromium over the DevTools protocol
 with no dependencies). Everything after it is on the far side of the OS, so
