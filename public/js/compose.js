@@ -164,6 +164,82 @@ export function captureSequence(ordered, lastIso) {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Weight.
+//
+// Messages uploads a batch in parallel and lands each attachment as it
+// finishes, so the arrival order is completion order, which tracks file size.
+// Measured on a real week: the received order matched smallest-file-first in
+// seven of ten positions, and the three that didn't were three photos within
+// 0.4 MB of each other — a tie, decided by jitter.
+//
+// Nothing in the payload overrides that. So the only lever left is the race
+// itself: make the files ascend in size in the order we want them read, by a
+// margin wide enough that jitter can't reorder a pair.
+//
+// We can only pad up, never down, so the cost is driven by how badly the real
+// sizes are inverted against the week — a 7 MB photo on Monday means every
+// photo after it has to clear 7 MB. Hence the budget, and the retry on a
+// narrower margin, and the willingness to give up: a 200 MB message that fails
+// to send is worse than a 60 MB one that arrives shuffled.
+// ---------------------------------------------------------------------------
+
+/**
+ * Target sizes that ascend, each at least as big as the file already is.
+ *
+ * Greedy is optimal here: taking the smallest legal target at every step never
+ * forces a larger one later, so this is the cheapest ladder that exists for a
+ * given order and margin.
+ *
+ * @param {number[]} sizes    actual file sizes, in send order
+ * @param {number} stepBytes  the margin to clear between neighbours
+ * @param {number} budgetBytes  the most we are willing to make the message weigh
+ * @returns {{targets:number[], total:number, step:number}|null} null if even the
+ *   narrowest margin costs more than the budget — then send unpadded.
+ */
+export function weightLadder(sizes, { stepBytes, budgetBytes }) {
+  const attempt = (step) => {
+    const targets = [];
+    let floor = 0;
+    let total = 0;
+    for (const size of sizes) {
+      const target = Math.max(size, floor);
+      targets.push(target);
+      total += target;
+      floor = target + step;
+    }
+    return { targets, total, step };
+  };
+
+  // Halve the margin rather than abandon the ladder outright: a narrow margin
+  // still orders every pair that isn't a near-tie.
+  const floor = Math.max(1, Math.floor(stepBytes / 8));
+  for (let step = stepBytes; step >= floor; step = Math.floor(step / 2)) {
+    const run = attempt(step);
+    if (run.total <= budgetBytes) return run;
+  }
+  return null;
+}
+
+/**
+ * The order the files actually go into the share.
+ *
+ * Same as the week reads, except that videos go last. A clip is ten times the
+ * weight of a photo and cannot be padded past — a 29 MB video on Wednesday
+ * would mean padding every photo after it past 29 MB, which is a message that
+ * will not send. They lose the race anyway; putting them last means the order
+ * we send is the order that arrives, at the cost of a clip appearing after the
+ * days that follow it. Set `videosLast: false` to keep them in place.
+ */
+export function shareOrder(items, days, videosLast = true) {
+  const ordered = orderedItems(items, days);
+  if (!videosLast) return ordered;
+  return [
+    ...ordered.filter((i) => i.kind !== "video"),
+    ...ordered.filter((i) => i.kind === "video"),
+  ];
+}
+
 export function totalBytes(items) {
   return items.reduce((sum, i) => sum + (i.file ? i.file.size : 0), 0);
 }

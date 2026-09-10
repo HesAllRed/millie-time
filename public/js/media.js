@@ -196,6 +196,37 @@ export function orderedName(file, position, count = 99) {
   return `${String(position).padStart(width, "0")}${extensionFor(file)}`;
 }
 
+// ---------------------------------------------------------------------------
+// Padding, for the weight ladder in compose.js.
+//
+// Trailing bytes past the end of the image — after EOI in a JPEG, after IEND in
+// a PNG — are ignored by every decoder, so a photo can be made to weigh more
+// without touching a pixel of it.
+//
+// One Blob is built at the largest size any single file needs, and every file
+// takes a slice of it. Slicing a Blob is a reference, not a copy, so eleven
+// files carrying forty megabytes of padding between them cost one allocation
+// rather than forty.
+// ---------------------------------------------------------------------------
+
+const PAD_CHUNK = 1 << 20;
+let padBlob = null;
+
+function padSource(bytes) {
+  if (padBlob && padBlob.size >= bytes) return padBlob;
+
+  // Noise, not zeroes: a long run of zeroes is exactly the thing a transfer
+  // might compress away, and compressed-away padding wins us nothing.
+  const noise = new Uint8Array(PAD_CHUNK);
+  for (let at = 0; at < PAD_CHUNK; at += 65536) {          // getRandomValues caps at 64K
+    crypto.getRandomValues(noise.subarray(at, Math.min(at + 65536, PAD_CHUNK)));
+  }
+  const parts = [];
+  for (let made = 0; made < bytes; made += PAD_CHUNK) parts.push(noise);
+  padBlob = new Blob(parts);
+  return padBlob;
+}
+
 /**
  * Splice a capture date into the bytes, without reading them.
  *
@@ -229,20 +260,17 @@ function datedParts(file, container, when) {
  * Every part here is a Blob slice, so nothing is read into memory: a
  * twenty-photo week costs twenty File objects, not sixty megabytes.
  */
-export function prepareForShare(file, { position, count, time, container = null, captureDate = null }) {
-  const name = orderedName(file, position, count);
+export function prepareForShare(
+  file,
+  { position, count, time, container = null, captureDate = null, padTo = 0, name = null },
+) {
+  const filename = name || orderedName(file, position, count);
   try {
     const parts = captureDate ? datedParts(file, container, captureDate) : [file];
-    return new File(parts, name, { type: file.type, lastModified: time });
-  } catch {
-    return file;                       // never let this cost us the share
-  }
-}
-
-/** Rebuild a File with a new timestamp, and optionally a new name. */
-export function stampTime(file, lastModified, name = file.name) {
-  try {
-    return new File([file], name, { type: file.type, lastModified });
+    // The one signal Messages actually acts on. See compose.js `weightLadder`.
+    const extra = Math.max(0, Math.round(padTo) - file.size);
+    if (extra > 0) parts.push(padSource(extra).slice(0, extra));
+    return new File(parts, filename, { type: file.type, lastModified: time });
   } catch {
     return file;                       // never let this cost us the share
   }

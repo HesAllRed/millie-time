@@ -182,7 +182,8 @@ every signal a receiving app might sort by is set to say the same thing.
 
 | Signal | How |
 |---|---|
-| Array order | day by day, oldest first, strays last |
+| **Weight** | **each file padded to outweigh the one before it — the only signal Messages acts on** |
+| Array order | day by day, oldest first, strays last, clips last of all |
 | Filename | `01`, `02`, … padded to the width of the count, print stays `00-` |
 | File timestamp | ascending, one second apart, overriding Safari's export stamp |
 | Capture date | already in agreement — it is what we sorted on — *except* for photos carrying no date at all, where we write one in that lands them exactly where we put them (JPEG via APP1, PNG via `eXIf`) |
@@ -211,6 +212,30 @@ order, and the difference is not metadata: it is eleven files and 28 MB, with a
 original. So there is a second, heavier probe in the same shape: every signal
 agrees, only the sizes vary, and the two smallest sit at positions 9 and 10
 where a race would show. It is built only on request, because it holds 28 MB.
+
+**It was the race, and weight decides it.** Measured on a real week of hers,
+sent and received: the arrival order matched smallest-file-first in seven of ten
+positions, and the three that didn't were three photos within 0.4 MB of each
+other. Sizes in arrival order: 0.087 → 2.9 → 3.9 → 3.5 → 3.6 → 4.1 → 5.4 → 6.9 →
+7.3 → 29.4 MB. Messages uploads a batch in parallel and lands each attachment as
+it finishes, so arrival order is completion order, and completion tracks bytes.
+
+This is also why the probes looked fine for so long: those screenshots were the
+**compose tray**, which does show the array order we hand over. The scrambling
+happens on send, and nothing in the payload overrides it.
+
+So the last lever is the race itself. Files are padded to ascend in weight in
+the order the week reads, by a margin wide enough that jitter cannot swap a
+pair — trailing bytes past EOI or IEND, which every decoder ignores, so not a
+pixel is touched. Padding can only add, so the cost is driven by how badly the
+real sizes are inverted against the week; hence a budget, a margin that narrows
+to fit, and the willingness to give up entirely, because a 200 MB message that
+fails to send is worse than a 60 MB one that arrives shuffled. Her week: 67 MB
+becomes 100 MB, and the race then produces exactly the intended order.
+
+Clips go last. A 29 MB video mid-week would mean padding every photo after it
+past 29 MB. They lose the race anyway, so sending them last is what makes the
+order we send the order that arrives.
 
 **Testing it.** Everything up to `navigator.share()` is now covered end-to-end in
 a real browser (`test/order.test.js`, driving Chromium over the DevTools protocol

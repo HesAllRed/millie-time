@@ -7,8 +7,8 @@ import {
   state, set, subscribe, days, refreshWindow, unsortedCount,
   loadSession, saveSession, writeSession, clearAll,
 } from "./state.js";
-import { composeText, orderedItems, captureSequence } from "./compose.js";
-import { ingest, assignDays, stopVideo, prepareForShare, stampTime } from "./media.js";
+import { composeText, shareOrder, captureSequence, weightLadder } from "./compose.js";
+import { ingest, assignDays, stopVideo, prepareForShare } from "./media.js";
 import { renderPrint } from "./print.js";
 import { copyText, runShareLadder, shareWords, sharePhotos } from "./share.js";
 import { renderIntake } from "./views/intake.js";
@@ -135,37 +135,59 @@ picker.addEventListener("change", async () => {
 
 // --- sharing ---------------------------------------------------------------
 
+const MB = 1048576;
+
 function payload() {
   const week = days();
   const text = composeText(week, state.captions, cfg);
-  const ordered = orderedItems(state.items, week);
+  const ordered = shareOrder(state.items, week, cfg.videosLast);
   const stamps = captureSequence(ordered, week[week.length - 1]);
 
-  // One base for the whole batch, so names and timestamps ascend together.
-  const base = Date.now() - (ordered.length + 2) * 1000;
-  let invented = 0;
-
-  const files = ordered.map((item, i) => {
-    if (!cfg.renumberOnShare) return item.file;
+  // The print leads, keeping its descriptive "00-" name, and is the lightest
+  // thing in the batch — which is exactly where the ladder wants it.
+  const entries = ordered.map((item, i) => ({
+    file: item.file,
+    container: item.container,
     // Only ever for a file that doesn't already say when it was taken. A real
     // capture date is the truth and stays untouched.
-    const captureDate = item.container && !item.hasExifDate ? stamps[i] : null;
-    if (captureDate) invented++;
-    return prepareForShare(item.file, {
-      position: i + 1,
-      count: ordered.length,
+    captureDate: item.container && !item.hasExifDate ? stamps[i] : null,
+  }));
+  if (printFile) entries.unshift({ file: printFile, name: printFile.name });
+
+  // Messages lands attachments as their uploads finish, so weight is the only
+  // ordering signal it acts on. See compose.js.
+  const ladder = cfg.renumberOnShare && cfg.orderByWeight
+    ? weightLadder(entries.map((e) => e.file.size), {
+        stepBytes: cfg.weightStepMb * MB,
+        budgetBytes: cfg.maxPayloadMb * MB,
+      })
+    : null;
+
+  // One base for the whole batch, so names and timestamps ascend together.
+  const base = Date.now() - (entries.length + 2) * 1000;
+  const photos = entries.filter((e) => !e.name).length;
+
+  let numbered = 0;
+  const files = entries.map((entry, i) => {
+    if (!cfg.renumberOnShare) return entry.file;
+    if (!entry.name) numbered++;             // the print keeps its own 00- name
+    return prepareForShare(entry.file, {
+      name: entry.name || null,
+      position: numbered,
+      count: photos,
       time: base + (i + 1) * 1000,
-      container: item.container,
-      captureDate,
+      container: entry.container,
+      captureDate: entry.captureDate,
+      padTo: ladder ? ladder.targets[i] : 0,
     });
   });
 
-  if (printFile) {
-    // The print keeps its descriptive "00-" name but takes the earliest stamp.
-    files.unshift(cfg.renumberOnShare ? stampTime(printFile, base) : printFile);
-  }
-
-  record("payload", `${files.length} files, ${invented} dated by us`);
+  const invented = entries.filter((e) => e.captureDate).length;
+  const weighed = files.reduce((sum, f) => sum + f.size, 0);
+  record("payload", `${files.length} files, ${invented} dated by us, ${(weighed / MB).toFixed(1)} MB`);
+  record("weight", ladder
+    ? `ladder step ${(ladder.step / MB).toFixed(2)} MB · ${files.map((f) => (f.size / MB).toFixed(2)).join(" ")}`
+    : cfg.orderByWeight ? "NO LADDER — over budget, sending at real sizes" : "off");
   record("order", files.map((f, i) => `${i}:${f.name}`).join(" "));
   return { text, files };
 }
