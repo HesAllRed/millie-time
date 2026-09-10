@@ -10,7 +10,7 @@ import { h, clear } from "../ui.js";
 import { state, set, days, unsortedCount } from "../state.js";
 import { copyText, runShareLadder } from "../share.js";
 import { buildProbe, buildHeavyProbe } from "../probe.js";
-import { formatBytes, shareOrder, captureSequence, weightLadder } from "../compose.js";
+import { formatBytes, shareOrder, captureSequence, weightPlan } from "../compose.js";
 import { orderedName } from "../media.js";
 
 /**
@@ -28,9 +28,9 @@ function shareManifest() {
   // Weight is the signal Messages actually acts on, so the manifest has to show
   // the padded size rather than the size on disk — that is what will race.
   const ladder = cfg.renumberOnShare && cfg.orderByWeight
-    ? weightLadder(ordered.map((i) => i.file.size), {
-        stepBytes: cfg.weightStepMb * MB,
-        budgetBytes: cfg.maxPayloadMb * MB,
+    ? weightPlan(ordered.map((i) => ({ size: i.file.size, kind: i.kind })), {
+        stepMb: cfg.weightStepMb,
+        budgetMb: cfg.maxPayloadMb,
       })
     : null;
 

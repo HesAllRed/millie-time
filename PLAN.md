@@ -233,9 +233,23 @@ to fit, and the willingness to give up entirely, because a 200 MB message that
 fails to send is worse than a 60 MB one that arrives shuffled. Her week: 67 MB
 becomes 100 MB, and the race then produces exactly the intended order.
 
-Clips go last. A 29 MB video mid-week would mean padding every photo after it
-past 29 MB. They lose the race anyway, so sending them last is what makes the
-order we send the order that arrives.
+Clips go last, and are left out of the ladder entirely. A 29 MB video mid-week
+would mean padding every photo after it past 29 MB — a message that will not
+send. A clip loses the race whatever we do, so it is budgeted for but never
+padded past, and sending it last is what makes the order we send the order that
+arrives. The cost is real and unfixable inside one message: a clip filmed on
+Sunday appears after Friday's photos. Putting it in its own message is the only
+way round that.
+
+**Truth beats a guarantee nobody reads.** The capture sequence used to force
+itself to ascend, so that "sorted by date taken" and the order we sent were the
+same list. Weight turned out to be the only signal a receiving app acts on, and
+that guarantee was being bought with the truth: a clip filmed on the 2nd, moved
+to the end of the send, had its date dragged to the end of the week with it, and
+every file was stamped with the time it was *sent* rather than the time it was
+taken — which filed a video from the 2nd under the 10th. A real date is now used
+exactly as it is and never adjusted; only an item with no date of its own gets
+one invented, late on the day she put it on.
 
 **Testing it.** Everything up to `navigator.share()` is now covered end-to-end in
 a real browser (`test/order.test.js`, driving Chromium over the DevTools protocol

@@ -124,6 +124,7 @@ export function orderedItems(items, days) {
 // ---------------------------------------------------------------------------
 
 const DAY_MS = 86400000;
+const BYTES_PER_MB = 1048576;
 
 /** Local midnight for an ISO day. */
 function dayStart(iso) {
@@ -132,36 +133,37 @@ function dayStart(iso) {
 }
 
 /**
- * A strictly ascending capture time for each item in send order.
+ * When each item was taken, in send order.
  *
- * A real EXIF date is used as-is and never overwritten — it is the truth, the
- * recipient's Photos app files by it, and it already agrees with our order.
- * Everything else gets a synthetic time that lands late on its own day, after
- * the photos that do know when they were taken and before the next day starts.
+ * A real date is used exactly as it is and is NEVER adjusted. This used to
+ * force the whole sequence to ascend, so that "sorted by date taken" and the
+ * order we sent would be the same list — but weight turned out to be the only
+ * signal a receiving app acts on, and that guarantee was being bought with the
+ * truth. It cost a clip filmed on the 2nd: moved to the end of the send, the
+ * ascending rule dragged its date to the end of the week with it.
+ *
+ * Only an item with no date of its own gets one invented, and it lands late on
+ * the day she put it on, after everything that does know its own time.
  *
  * @param {Array} ordered  items, already in send order
  * @param {string} lastIso the last day of the week, for items on no day at all
- * @returns {Date[]} one per item, same order, strictly increasing
+ * @returns {Date[]} one per item, same order
  */
 export function captureSequence(ordered, lastIso) {
-  const out = [];
-  let previous = 0;
+  const invented = new Map();          // ISO day -> how many we have made up there
 
-  for (const item of ordered) {
-    let ms;
-    if (item.takenAt) {
-      ms = item.takenAt.getTime();
-    } else {
-      // Late on its own day — or on the last day of the week for a stray, which
-      // is where the send puts it anyway.
-      const iso = item.day || lastIso;
-      ms = iso ? dayStart(iso).getTime() + DAY_MS - 60000 : previous + 1000;
-    }
-    if (ms <= previous) ms = previous + 1000;    // never let two collide
-    out.push(new Date(ms));
-    previous = ms;
-  }
-  return out;
+  return ordered.map((item) => {
+    if (item.takenAt) return new Date(item.takenAt.getTime());
+
+    const iso = item.day || lastIso;
+    if (!iso) return new Date();       // nothing at all to anchor it to
+
+    const nth = invented.get(iso) || 0;
+    invented.set(iso, nth + 1);
+    // 23:59 on its own day, a second apart, so two undated photos on the same
+    // day never land on the same instant.
+    return new Date(dayStart(iso).getTime() + DAY_MS - 60000 + nth * 1000);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +221,36 @@ export function weightLadder(sizes, { stepBytes, budgetBytes }) {
     if (run.total <= budgetBytes) return run;
   }
   return null;
+}
+
+/**
+ * The ladder for a real payload.
+ *
+ * Clips are left at their own weight and excluded from the rungs. Padding every
+ * photo past a 29 MB video is a message that will not send, and a video loses
+ * the race regardless of what we do — so it is budgeted for, but never padded
+ * past.
+ *
+ * @param {Array} entries  { size, kind } in send order
+ * @returns {{targets:number[], total:number, step:number}|null}
+ */
+export function weightPlan(entries, { stepMb, budgetMb }) {
+  const clips = entries.filter((e) => e.kind === "video");
+  const clipBytes = clips.reduce((sum, e) => sum + e.size, 0);
+  const rest = entries.filter((e) => e.kind !== "video");
+
+  const run = weightLadder(rest.map((e) => e.size), {
+    stepBytes: stepMb * BYTES_PER_MB,
+    budgetBytes: budgetMb * BYTES_PER_MB - clipBytes,
+  });
+  if (!run) return null;
+
+  let at = 0;
+  return {
+    step: run.step,
+    total: run.total + clipBytes,
+    targets: entries.map((e) => (e.kind === "video" ? e.size : run.targets[at++])),
+  };
 }
 
 /**
