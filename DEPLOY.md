@@ -116,6 +116,10 @@ That also clears the app's storage, so any autosaved captions go with it.
 Practical consequence: **settle the icon before she installs it.** Changing it
 afterwards means asking her to delete and re-add the app.
 
+This is why the logo she picks under **options** only changes the mark *inside*
+the app. Nothing in a web app can reach the icon on her home screen once it is
+there, so the options panel says so rather than pretending otherwise.
+
 ### Testing a risky change without touching her copy
 
 ```bash
@@ -133,6 +137,12 @@ points at anything you haven't seen working.
 Everything you'd want to reword lives in **`public/js/config.js`** — the tagline,
 the typeface it uses, the word after a successful send, the heading on the print,
 the length of the week. No logic in that file; edit, commit, push.
+
+The colours and the logos she chooses between live in **`public/js/theme.js`**, in
+the same spirit: a scheme is eleven colours and a name. Two rules, both tested —
+every scheme paints the same set of variables, and every one keeps a dark ground
+under a light accent, because the whole app puts dark ink on accent-coloured
+buttons.
 
 Fonts are self-hosted in `public/fonts/` so the app works with no signal. To make
 another face selectable, drop the `.woff2` in there, add an `@font-face` and a

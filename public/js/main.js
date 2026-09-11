@@ -17,12 +17,22 @@ import { renderSort, resetSort } from "./views/sort.js";
 import { renderDeck, resetDeck } from "./views/deck.js";
 import { renderStepper, renderSent, renderFallback } from "./views/send.js";
 import { renderDebug, installLogging, record } from "./views/debug.js";
+import { loadLook, applyLook, currentScheme, currentLogo } from "./theme.js";
+import { installMenu } from "./menu.js";
+import { installConfetti } from "./confetti.js";
 
 const app = document.getElementById("app");
 const body = document.getElementById("body");
 const picker = document.getElementById("picker");
 
 installLogging();
+
+// Before anything is drawn: the whole palette is custom properties, so this is
+// one write to the root element rather than a repaint of a rendered screen.
+loadLook();
+applyLook();
+record("look", `${currentScheme().id} · ${currentLogo().id}`);
+
 loadSession();
 
 // ---------------------------------------------------------------------------
@@ -300,30 +310,74 @@ function screenKey() {
   return state.view;
 }
 
-function fallbackTransition() {
+/**
+ * Which screen changes travel sideways instead of smearing.
+ *
+ * Exactly one pair: "Looks right" is the first of the run of sideways swipes
+ * that carries her through the deck to "Share the week", so it should move the
+ * way those do. Backwards out of the deck is the same gesture, reversed.
+ * Everything else — the Continue tap included — keeps the blur.
+ */
+function slideDirection(from, to) {
+  if (from === "sort" && to === "deck") return "fwd";
+  if (from === "deck" && to === "sort") return "back";
+  return null;
+}
+
+function fallbackTransition(dir, done) {
   midTransition = true;
+  const nav = dir ? `nav-${dir}` : null;
   app.classList.add("leaving");
+  if (nav) app.classList.add(nav);
   setTimeout(() => {
     paint();
     app.classList.remove("leaving");
     app.classList.add("entering");
-    setTimeout(() => { app.classList.remove("entering"); midTransition = false; }, 520);
+    setTimeout(() => {
+      app.classList.remove("entering");
+      if (nav) app.classList.remove(nav);
+      midTransition = false;
+      done();
+    }, 520);
   }, 300);
 }
 
 function render() {
   const key = screenKey();
   const changed = lastScreen !== null && key !== lastScreen;
+  const dir = changed ? slideDirection(lastScreen, key) : null;
   lastScreen = key;
 
   if (!changed || midTransition || prefersReducedMotion()) { paint(); return; }
-  if (document.startViewTransition) { document.startViewTransition(() => paint()); return; }
-  fallbackTransition();
+
+  // The direction rides on the root element, because that is the only thing the
+  // ::view-transition pseudo-elements hang off — they are children of the root,
+  // not of #app.
+  const root = document.documentElement;
+  if (dir) root.classList.add(`nav-${dir}`);
+  const done = () => { if (dir) root.classList.remove(`nav-${dir}`); };
+
+  if (document.startViewTransition) {
+    document.startViewTransition(() => paint()).finished.then(done, done);
+    return;
+  }
+  fallbackTransition(dir, done);
 }
 
 subscribe(render);
 window.addEventListener("hashchange", render);
+// A new logo has to reach the mark she is looking at while she picks it. The
+// scheme doesn't need this — it is custom properties, which repaint themselves.
+document.addEventListener("look-changed", render);
 render();
+
+// --- the menu --------------------------------------------------------------
+installConfetti(document.getElementById("confetti"));
+installMenu({
+  button: document.getElementById("menubtn"),
+  menu: document.getElementById("menu"),
+  shell: body,
+});
 
 // --- the escape hatch ------------------------------------------------------
 //

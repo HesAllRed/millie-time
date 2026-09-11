@@ -12,6 +12,7 @@ import { copyText, runShareLadder } from "../share.js";
 import { buildProbe, buildHeavyProbe } from "../probe.js";
 import { formatBytes, shareOrder, captureSequence, weightPlan } from "../compose.js";
 import { orderedName } from "../media.js";
+import { currentScheme, currentLogo } from "../theme.js";
 
 /**
  * Exactly what the share would send, in order. If photos still arrive scrambled
@@ -185,6 +186,7 @@ function diagnosticsText() {
   lines.push("");
   for (const [k, v] of probes()) lines.push(`${k}: ${v}`);
   lines.push("");
+  lines.push(`look: ${currentScheme().id} · ${currentLogo().id}`);
   lines.push(`window: ${state.startIso} → ${state.endIso} (${days().length}d, auto=${state.autoWindow})`);
   lines.push(`captions: ${Object.keys(state.captions).join(", ") || "none"}`);
   lines.push(`items: ${state.items.length}, unsorted: ${unsortedCount()}`);
