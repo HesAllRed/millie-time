@@ -10,7 +10,7 @@
 // picker was pretending to offer.
 
 import cfg from "../config.js";
-import { h, clear, mark } from "../ui.js";
+import { h, clear } from "../ui.js";
 import { state, set, days } from "../state.js";
 import { dayLabel, weekIndex } from "../dates.js";
 import { dayStatus } from "../compose.js";
@@ -58,10 +58,6 @@ export function renderIntake(root, { onPick }) {
   const resuming = hasWork();
 
   root.append(
-    // The logo she can change lives here, where she sees it every week — the
-    // options panel is otherwise choosing a mark she'd only meet on a progress
-    // screen.
-    mark(),
     h("p", { class: "brandline", text: cfg.name }),
     h("div", { class: "spacer" }),
     rangeBlock(week),

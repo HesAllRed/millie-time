@@ -1,11 +1,12 @@
-// The look: a colour scheme and a logo, chosen from the menu and remembered.
+// The look: a colour scheme, and which colour the app icon is.
 //
-// Two rules hold this file together.
+// Three rules hold this file together.
 //
-// 1. Every scheme repaints the *same* set of custom properties. A scheme that
-//    left one out would silently inherit the previous scheme's value and
-//    produce a palette nobody designed — so there is a test that they all carry
-//    identical keys.
+// 1. Every scheme repaints the *same* set of custom properties — the still ones
+//    from a table, the moving ones from a function, and the function has to
+//    return the same set on every frame. A scheme that left one out would
+//    silently inherit the previous scheme's value and produce a palette nobody
+//    designed, so there is a test for it.
 //
 // 2. Every scheme keeps a dark ground under a light accent. A dozen rules in
 //    app.css put dark ink (--ink) on an accent or magenta fill; inverting that
@@ -13,11 +14,61 @@
 //    palette. The roles stay fixed too: the accent leads, magenta marks whatever
 //    is being touched, cyan carries information.
 //
+// 3. Nothing here runs at module load. The tests import it with a stub document
+//    and no window at all.
+//
 // Stored under its own key, deliberately separate from the session: the week
 // expires after 48 hours and "Start a new week" wipes it, and neither of those
 // should quietly undo a choice she made about how her app looks.
 
 const KEY = "millie.look.v1";
+
+/** h 0-360, s and l per cent, out as #rrggbb. */
+export function hsl(h, s, l) {
+  const H = ((h % 360) + 360) % 360;
+  const S = Math.min(100, Math.max(0, s)) / 100;
+  const L = Math.min(100, Math.max(0, l)) / 100;
+  const c = (1 - Math.abs(2 * L - 1)) * S;
+  const x = c * (1 - Math.abs(((H / 60) % 2) - 1));
+  const m = L - c / 2;
+  const [r, g, b] =
+    H < 60  ? [c, x, 0] : H < 120 ? [x, c, 0] : H < 180 ? [0, c, x] :
+    H < 240 ? [0, x, c] : H < 300 ? [x, 0, c] : [c, 0, x];
+  const hex = (v) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
+/**
+ * A whole palette built from one hue — what the moving schemes ride on.
+ *
+ * The three roles keep their distance as the wheel turns: the accent leads on
+ * the hue itself, the mark sits a third of the way round from it, and the
+ * information colour two thirds. Turning the hue therefore recolours the app
+ * without ever collapsing two roles into the same colour.
+ */
+export function spectrum(hue) {
+  const mark = hue + 130;
+  const info = hue + 230;
+  return {
+    ground:      hsl(hue, 18, 7),
+    surface:     hsl(hue, 16, 11),
+    "surface-2": hsl(hue, 15, 15),
+    edge:        hsl(hue, 14, 23),
+    "edge-soft": hsl(hue, 14, 16),
+    // Barely tinted, on purpose. At 24% saturation a yellow frame turned every
+    // word on the screen olive: the accent is what should carry the colour, and
+    // the type should only ever catch a cast of it.
+    bone:        hsl(hue, 14, 94),
+    "bone-dim":  hsl(hue, 8, 70),
+    "bone-mute": hsl(hue, 6, 46),
+    accent:      hsl(hue, 90, 82),
+    magenta:     hsl(mark, 78, 64),
+    cyan:        hsl(info, 70, 62),
+    ink:         hsl(hue, 60, 9),
+  };
+}
+
+const TURN = Math.PI * 2;
 
 export const schemes = [
   {
@@ -65,22 +116,39 @@ export const schemes = [
       accent: "#A8D4FF", magenta: "#F26DA8", cyan: "#6FE3D9", ink: "#0A1626",
     },
   },
+
+  // The moving two. `frame` is the palette at a point in the cycle; `vars` is
+  // the frame it stands still on — what Reduce Motion gets, and what the swatch
+  // and the status bar are painted from.
+  {
+    id: "rainbow", name: "Rainbow", moving: true, cycle: 26,
+    frame: (t) => spectrum(360 * t),
+    vars: spectrum(300),
+  },
+  {
+    id: "aurora", name: "Aurora", moving: true, cycle: 48,
+    // Green through teal and blue to violet, and back the way it came. A full
+    // turn would take it through orange, which is not what an aurora does.
+    frame: (t) => spectrum(170 + 90 * Math.sin(TURN * t)),
+    vars: spectrum(170),
+  },
 ];
 
-// The mark inside the app — the one on the entry screen, the one that breathes
-// while iOS is thinking, the one on the SENT screen.
-//
-// Not the home-screen icon: iOS snapshots that when the app is added and never
-// looks at it again, so no amount of choosing here can change it. Deleting and
-// re-adding the shortcut is the only way, and that clears her captions with it.
-// See DEPLOY.md.
-export const logos = [
-  { id: "invader", name: "Invader", glyph: "👾" },
-  { id: "paw",     name: "Paw",     glyph: "🐾" },
-  { id: "bloom",   name: "Bloom",   glyph: "🌸" },
-  { id: "star",    name: "Star",    glyph: "⭐" },
-  { id: "moon",    name: "Moon",    glyph: "🌙" },
-  { id: "camera",  name: "Camera",  glyph: "📸" },
+/**
+ * The app icon, in six colours.
+ *
+ * These are real PNGs — generated by tools/icon-maker.html, which draws the
+ * same artwork from the same palettes. iOS takes its home-screen icon from the
+ * apple-touch-icon link, and it takes it *once*, when the shortcut is added:
+ * choosing here decides what the next install gets, and the menu says so.
+ */
+export const icons = [
+  { id: "lavender", name: "Lavender", apple: "./icons/apple-touch-icon.png",          tab: "./icons/icon-192.png" },
+  { id: "sunset",   name: "Sunset",   apple: "./icons/apple-touch-icon-sunset.png",   tab: "./icons/icon-192-sunset.png" },
+  { id: "mint",     name: "Mint",     apple: "./icons/apple-touch-icon-mint.png",     tab: "./icons/icon-192-mint.png" },
+  { id: "gold",     name: "Gold",     apple: "./icons/apple-touch-icon-gold.png",     tab: "./icons/icon-192-gold.png" },
+  { id: "midnight", name: "Midnight", apple: "./icons/apple-touch-icon-midnight.png", tab: "./icons/icon-192-midnight.png" },
+  { id: "rainbow",  name: "Rainbow",  apple: "./icons/apple-touch-icon-rainbow.png",  tab: "./icons/icon-192-rainbow.png" },
 ];
 
 // The first of each list is the default, and the fallback for anything unknown.
@@ -88,8 +156,8 @@ export function schemeById(id) {
   return schemes.find((s) => s.id === id) || schemes[0];
 }
 
-export function logoById(id) {
-  return logos.find((l) => l.id === id) || logos[0];
+export function iconById(id) {
+  return icons.find((i) => i.id === id) || icons[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -97,21 +165,20 @@ export function logoById(id) {
 // storage, and written through on change.
 // ---------------------------------------------------------------------------
 
-let look = { scheme: schemes[0].id, logo: logos[0].id };
+let look = { scheme: schemes[0].id, icon: icons[0].id };
 
 /** Whatever was stored, reduced to two ids we recognise. Pure; tested. */
 export function readLook(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   return {
     scheme: schemeById(src.scheme).id,
-    logo: logoById(src.logo).id,
+    icon: iconById(src.icon).id,
   };
 }
 
 export function currentLook() { return { ...look }; }
 export function currentScheme() { return schemeById(look.scheme); }
-export function currentLogo() { return logoById(look.logo); }
-export function logoGlyph() { return currentLogo().glyph; }
+export function currentIcon() { return iconById(look.icon); }
 
 export function loadLook() {
   try {
@@ -132,53 +199,80 @@ export function setScheme(id) {
   return currentScheme();
 }
 
-export function setLogo(id) {
-  look.logo = logoById(id).id;
+export function setIcon(id) {
+  look.icon = iconById(id).id;
   saveLook();
   applyLook();
-  return currentLogo();
+  return currentIcon();
 }
 
 // ---------------------------------------------------------------------------
 // Painting it.
 // ---------------------------------------------------------------------------
 
-/** Write a scheme's variables onto a root element. Everything else follows. */
-export function paintScheme(scheme, root) {
+/** Write a palette onto a root element. Everything else follows. */
+export function paintVars(vars, root) {
   const el = root || (typeof document !== "undefined" ? document.documentElement : null);
   if (!el || !el.style) return;
-  for (const [name, value] of Object.entries(scheme.vars)) {
+  for (const [name, value] of Object.entries(vars)) {
     el.style.setProperty(`--${name}`, value);
   }
 }
 
-/** An emoji as an icon file, without shipping six more PNGs. */
-export function glyphIcon(glyph) {
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
-    `<text x="50%" y="52" font-size="52" text-anchor="middle">${glyph}</text></svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+const reduceMotion = () =>
+  typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+// ---------------------------------------------------------------------------
+// The moving schemes.
+//
+// Driven from here rather than from CSS, because animating a custom property
+// needs @property and would then run at the compositor's pace whether anyone is
+// looking or not. This way the rate is ours: twelve or so frames a second,
+// which is smooth at these speeds and is a twelfth of the style recalculations.
+// requestAnimationFrame stops on its own while the app is in the background.
+// ---------------------------------------------------------------------------
+
+const STEP_MS = 80;
+let motion = null;      // the live rAF handle
+let motionAt = 0;
+
+function stopMotion() {
+  if (motion && typeof cancelAnimationFrame === "function") cancelAnimationFrame(motion);
+  motion = null;
 }
 
-// The crafted icon is better than any emoji, so it is only replaced once she
-// has actually chosen something else — and put back if she chooses the invader
-// again. Captured on the first call, before we have overwritten it.
-let stockIcon = null;
+function startMotion(scheme) {
+  stopMotion();
+  if (!scheme.frame || reduceMotion()) return;         // the still frame is already painted
+  if (typeof requestAnimationFrame !== "function") return;
 
-function paintIcon(logo) {
-  const link = document.querySelector?.('link[rel="icon"]');
-  if (!link) return;
-  if (stockIcon === null) stockIcon = link.getAttribute("href") || "";
-  link.setAttribute("href", logo.id === logos[0].id ? stockIcon : glyphIcon(logo.glyph));
+  const started = typeof performance !== "undefined" ? performance.now() : Date.now();
+  motionAt = 0;
+  const step = (now) => {
+    if (now - motionAt >= STEP_MS) {
+      motionAt = now;
+      paintVars(scheme.frame(((now - started) / 1000 / scheme.cycle) % 1));
+    }
+    motion = requestAnimationFrame(step);
+  };
+  motion = requestAnimationFrame(step);
 }
 
-/** Apply the whole look: variables, the iOS status-bar tint, the tab icon. */
+/** Apply the whole look: the palette, the status-bar tint, the icon links. */
 export function applyLook() {
   const scheme = currentScheme();
-  paintScheme(scheme);
+  paintVars(scheme.vars);
+  startMotion(scheme);
 
+  // Set once per change rather than per frame. The ground is all but black in
+  // every palette, so a moving scheme never drifts far enough from it to show.
   const meta = document.querySelector?.('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", scheme.vars.ground);
 
-  paintIcon(currentLogo());
-  document.dispatchEvent?.(new Event("look-changed"));
+  // Both links, because iOS reads the first for a home-screen icon and every
+  // browser reads the second for the tab — and only the second is visible from
+  // inside the app, which is the only feedback the choice can give her here.
+  const icon = currentIcon();
+  document.querySelector?.('link[rel="apple-touch-icon"]')?.setAttribute("href", icon.apple);
+  document.querySelector?.('link[rel="icon"]')?.setAttribute("href", icon.tab);
 }

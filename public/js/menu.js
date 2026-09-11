@@ -8,7 +8,7 @@
 // step with it the moment the keyboard opens.
 
 import { h, clear, prefersReducedMotion } from "./ui.js";
-import { schemes, logos, currentScheme, currentLogo, setScheme, setLogo } from "./theme.js";
+import { schemes, icons, currentScheme, currentIcon, setScheme, setIcon } from "./theme.js";
 import { spray } from "./confetti.js";
 
 const OUT_MS = 170;
@@ -46,34 +46,48 @@ function rootPanel() {
   ];
 }
 
+/**
+ * A moving scheme's swatch, made of the colours it will actually show: eight
+ * accents from around its own cycle, closed back on the first. Two moving
+ * schemes therefore never look alike unless they really do move alike.
+ */
+function wheel(scheme) {
+  const stops = [];
+  for (let i = 0; i < 8; i++) stops.push(scheme.frame(i / 8).accent);
+  return `conic-gradient(${stops.concat(stops[0]).join(",")})`;
+}
+
 function swatch(scheme) {
   const on = scheme.id === currentScheme().id;
   return h("button", {
     type: "button",
-    class: `swatch${on ? " on" : ""}`,
+    // A moving scheme shows the whole wheel turning rather than three bars of
+    // one frame of it, which would say nothing about what it does.
+    class: `swatch${on ? " on" : ""}${scheme.moving ? " moving" : ""}`,
     style: `background:${scheme.vars.ground}`,
     title: scheme.name,
-    "aria-label": scheme.name,
+    "aria-label": scheme.moving ? `${scheme.name}, moving` : scheme.name,
     "aria-pressed": String(on),
     onclick: () => { setScheme(scheme.id); fill(); },
   },
-    h("i", { style: `top:0;background:${scheme.vars.accent}` }),
-    h("i", { style: `top:33.34%;background:${scheme.vars.magenta}` }),
-    h("i", { style: `top:66.68%;background:${scheme.vars.cyan}` })
+    scheme.moving ? h("i", { class: "wheel", style: `background:${wheel(scheme)}` }) : [
+      h("i", { style: `top:0;background:${scheme.vars.accent}` }),
+      h("i", { style: `top:33.34%;background:${scheme.vars.magenta}` }),
+      h("i", { style: `top:66.68%;background:${scheme.vars.cyan}` }),
+    ]
   );
 }
 
-function glyph(logo) {
-  const on = logo.id === currentLogo().id;
+function iconPick(icon) {
+  const on = icon.id === currentIcon().id;
   return h("button", {
     type: "button",
-    class: `glyph${on ? " on" : ""}`,
-    text: logo.glyph,
-    title: logo.name,
-    "aria-label": logo.name,
+    class: `iconpick${on ? " on" : ""}`,
+    title: icon.name,
+    "aria-label": icon.name,
     "aria-pressed": String(on),
-    onclick: () => { setLogo(logo.id); fill(); },
-  });
+    onclick: () => { setIcon(icon.id); fill(); },
+  }, h("img", { src: icon.apple, alt: "", width: "44", height: "44" }));
 }
 
 function optionsPanel() {
@@ -87,14 +101,13 @@ function optionsPanel() {
     h("p", { class: "menu-sec", text: "colour scheme" }),
     h("div", { class: "swatches" }, schemes.map(swatch)),
 
-    h("p", { class: "menu-sec", text: "app logo" }),
-    h("div", { class: "glyphs" }, logos.map(glyph)),
+    h("p", { class: "menu-sec", text: "app icon" }),
+    h("div", { class: "picks" }, icons.map(iconPick)),
 
-    // Said plainly, because it is the one thing here that looks like it should
-    // work and can't: iOS snapshots the home-screen icon when the app is added
-    // and never reads it again.
+    // The one thing in here that cannot take effect where she is standing: iOS
+    // reads the icon once, when the shortcut is added, and never again.
     h("p", { class: "menu-note",
-      text: "Shows up inside the app. The home-screen icon was set when you installed it." }),
+      text: "Pick before adding it to your Home Screen — iOS keeps the icon it was added with." }),
   ];
 }
 

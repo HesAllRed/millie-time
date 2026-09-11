@@ -1,7 +1,5 @@
 // Small DOM helpers plus the crescent geometry, shared by the sort and deck views.
 
-import { logoGlyph } from "./theme.js";
-
 export function h(tag, props, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(props || {})) {
@@ -65,20 +63,13 @@ export function tilt(i, m, compact = false) {
 // NB: the size options are `width`/`height`, not `w`/`h` — destructuring `h`
 // here would shadow the element helper above and break every tile.
 /**
- * The little invader — or whatever she picked in its place (theme.js).
- *
- * Two nested elements because the two motions have to compose: the wrapper
- * breathes, the emoji inside dances. One element can only carry one `transform`
- * animation, and the second would silently win.
+ * The little invader. Two nested elements because the two motions have to
+ * compose: the wrapper breathes, the emoji inside dances. One element can only
+ * carry one `transform` animation, and the second would silently win.
  */
 export function orb(breathing = false) {
   return h("div", { class: `orb${breathing ? " pulse" : ""}`, "aria-hidden": "true" },
-    h("span", { text: logoGlyph() }));
-}
-
-/** The same mark, standing still. */
-export function mark() {
-  return h("p", { class: "mark", "aria-hidden": "true", text: logoGlyph() });
+    h("span", { text: "👾" }));
 }
 
 export function tile(item, { width, height, onTap, selected } = {}) {

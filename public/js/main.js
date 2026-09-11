@@ -17,7 +17,7 @@ import { renderSort, resetSort } from "./views/sort.js";
 import { renderDeck, resetDeck } from "./views/deck.js";
 import { renderStepper, renderSent, renderFallback } from "./views/send.js";
 import { renderDebug, installLogging, record } from "./views/debug.js";
-import { loadLook, applyLook, currentScheme, currentLogo } from "./theme.js";
+import { loadLook, applyLook, currentScheme, currentIcon } from "./theme.js";
 import { installMenu } from "./menu.js";
 import { installConfetti } from "./confetti.js";
 
@@ -31,7 +31,7 @@ installLogging();
 // one write to the root element rather than a repaint of a rendered screen.
 loadLook();
 applyLook();
-record("look", `${currentScheme().id} · ${currentLogo().id}`);
+record("look", `${currentScheme().id} · icon ${currentIcon().id}`);
 
 loadSession();
 
@@ -366,9 +366,6 @@ function render() {
 
 subscribe(render);
 window.addEventListener("hashchange", render);
-// A new logo has to reach the mark she is looking at while she picks it. The
-// scheme doesn't need this — it is custom properties, which repaint themselves.
-document.addEventListener("look-changed", render);
 render();
 
 // --- the menu --------------------------------------------------------------

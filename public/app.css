@@ -179,9 +179,6 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .font-fraunces{ font-family: var(--hand); font-style: italic; font-size: 21px; }
 .font-bricolage{ font-family: var(--ui); font-weight: 800; font-size: 22px; letter-spacing: -.02em; }
 
-/* The logo, standing still. The orb is the same glyph with the motions on. */
-.mark{ font-size: 34px; line-height: 1; margin: 0 0 8px; text-align: center; }
-
 .warmline{ font-family: var(--hand); font-size: 19px; line-height: 1.45; color: var(--bone-dim); margin: 26px 0 0; }
 .helper{ font-family: var(--mono); font-size: 11px; line-height: 1.6; color: var(--bone-mute); margin: 12px 0 0; text-align: center; }
 .nowt{ font-family: var(--hand); font-size: 15px; color: var(--bone-mute); }
@@ -565,17 +562,29 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .menu-sec{ font-family: var(--mono); font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--bone-mute); margin: 14px 6px 9px; }
 .menu-note{ font-family: var(--mono); font-size: 9.5px; line-height: 1.7; color: var(--bone-mute); margin: 14px 6px 4px; }
 
-.swatches, .glyphs{ display: flex; flex-wrap: wrap; gap: 9px; padding: 0 6px; }
-.swatch, .glyph{
+.swatches, .picks{ display: flex; flex-wrap: wrap; gap: 9px; padding: 0 6px; }
+.swatch, .iconpick{
   position: relative; width: 46px; height: 46px; padding: 0; overflow: hidden;
-  border: 2px solid var(--edge); border-radius: 3px;
+  border: 2px solid var(--edge); border-radius: 3px; background: none;
 }
-.swatch.on, .glyph.on{ border-color: var(--bone); box-shadow: 3px 3px 0 var(--accent); }
-.swatch:active, .glyph:active{ transform: translate(1px,1px); }
+.swatch.on, .iconpick.on{ border-color: var(--bone); box-shadow: 3px 3px 0 var(--accent); }
+.swatch:active, .iconpick:active{ transform: translate(1px,1px); }
+
 /* Three bars of the scheme it is offering, over that scheme's own ground —
    painted from theme.js's values, never from the variables in play. */
 .swatch i{ position: absolute; left: 0; right: 0; height: 33.34%; display: block; }
-.glyph{ display: grid; place-items: center; font-size: 23px; line-height: 1; background: var(--ground); }
+
+/* A moving scheme gets the wheel it turns rather than three bars of one frame,
+   which would look like a scheme that doesn't move. */
+.swatch .wheel{
+  position: absolute; inset: -30%; height: auto; border-radius: 50%;
+  /* The gradient itself is set inline, from the scheme's own frames. */
+  animation: wheel-turn 5.5s linear infinite;
+}
+@keyframes wheel-turn{ to{ transform: rotate(1turn); } }
+
+/* The real icon, at the size it will be on her Home Screen minus the corners. */
+.iconpick img{ display: block; width: 100%; height: 100%; object-fit: cover; }
 
 /* Above everything, including the menu it was thrown from.
 
@@ -591,7 +600,10 @@ button{ font: inherit; color: inherit; cursor: pointer; }
   .menu-box{ animation: none; }
   .menu.closing .menu-box{ animation: none; }
   .menubtn .bars i{ transition: none; }
-  .swatch:active, .glyph:active{ transform: none; }
+  .swatch:active, .iconpick:active{ transform: none; }
+  /* Still, but still every colour at once — it has to stay legible as the
+     choice that moves, since theme.js holds it on one frame here too. */
+  .swatch .wheel{ animation: none; }
 }
 
 /* --- utilities -----------------------------------------------------------
