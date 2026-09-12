@@ -42,19 +42,6 @@ const SHELL = [
   "./icons/apple-touch-icon.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  // The other colours of the icon. Cached with the rest so the options panel
-  // can show what it is offering on a phone with no signal — they are ~10 KB
-  // each, an order of magnitude under any one of the fonts above.
-  "./icons/apple-touch-icon-sunset.png",
-  "./icons/apple-touch-icon-mint.png",
-  "./icons/apple-touch-icon-gold.png",
-  "./icons/apple-touch-icon-midnight.png",
-  "./icons/apple-touch-icon-rainbow.png",
-  "./icons/icon-192-sunset.png",
-  "./icons/icon-192-mint.png",
-  "./icons/icon-192-gold.png",
-  "./icons/icon-192-midnight.png",
-  "./icons/icon-192-rainbow.png",
 ];
 
 self.addEventListener("install", (event) => {

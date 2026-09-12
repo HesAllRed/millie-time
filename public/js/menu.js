@@ -8,7 +8,10 @@
 // step with it the moment the keyboard opens.
 
 import { h, clear, prefersReducedMotion } from "./ui.js";
-import { schemes, icons, currentScheme, currentIcon, setScheme, setIcon } from "./theme.js";
+import {
+  schemes, currentScheme, currentLook, setScheme, setCustom, saveLook,
+  customScheme, spectrum, hslOf, CUSTOM,
+} from "./theme.js";
 import { spray } from "./confetti.js";
 
 const OUT_MS = 170;
@@ -63,7 +66,7 @@ function swatch(scheme) {
     type: "button",
     // A moving scheme shows the whole wheel turning rather than three bars of
     // one frame of it, which would say nothing about what it does.
-    class: `swatch${on ? " on" : ""}${scheme.moving ? " moving" : ""}`,
+    class: `swatch${on ? " on" : ""}${scheme.moving ? " moving" : ""}${scheme.id === CUSTOM ? " mine" : ""}`,
     style: `background:${scheme.vars.ground}`,
     title: scheme.name,
     "aria-label": scheme.moving ? `${scheme.name}, moving` : scheme.name,
@@ -78,16 +81,80 @@ function swatch(scheme) {
   );
 }
 
-function iconPick(icon) {
-  const on = icon.id === currentIcon().id;
-  return h("button", {
-    type: "button",
-    class: `iconpick${on ? " on" : ""}`,
-    title: icon.name,
-    "aria-label": icon.name,
-    "aria-pressed": String(on),
-    onclick: () => { setIcon(icon.id); fill(); },
-  }, h("img", { src: icon.apple, alt: "", width: "44", height: "44" }));
+// ---------------------------------------------------------------------------
+// Her own colour: two sliders, and the whole app repainting under her thumb.
+//
+// A hue and a vividness rather than a free-for-all colour well, because
+// spectrum() fixes every lightness — so there is no hue and no setting of
+// either slider that can produce a palette the app is unreadable in. The
+// picker can be handed over without a warning attached.
+// ---------------------------------------------------------------------------
+
+/** Where the thumbs stand: on her own colour, or on wherever the presets are. */
+function pickerAt() {
+  const look = currentLook();
+  if (look.scheme === CUSTOM) return look.custom;
+  const { h: hue, s } = hslOf(currentScheme().vars.accent);
+  return { hue, vivid: s };
+}
+
+const hueTrack = () => `linear-gradient(to right, ${
+  [0, 60, 120, 180, 240, 300, 360].map((d) => spectrum(d).accent).join(",")})`;
+
+const vividTrack = (hue) =>
+  `linear-gradient(to right, ${spectrum(hue, 0).accent}, ${spectrum(hue, 1).accent})`;
+
+function picker() {
+  const at = pickerAt();
+  const rows = [];
+
+  const slide = (label, value, max, track, read) => {
+    const input = h("input", {
+      type: "range", class: "slider", min: "0", max: String(max), step: "1",
+      value: String(Math.round(value)), "aria-label": label, style: `background:${track}`,
+    });
+    // Deliberately no fill() on input: rebuilding the panel mid-drag would tear
+    // the very slider out from under her thumb. What a repaint would have
+    // fixed is done by hand instead, in syncPicker().
+    input.addEventListener("input", () => {
+      setCustom(read(Number(input.value)));
+      syncPicker(rows);
+    });
+    input.addEventListener("change", () => { saveLook(); fill(); });
+    return h("div", { class: "slide-row" }, h("span", { class: "slide-l", text: label }), input);
+  };
+
+  rows.push(slide("hue", at.hue, 360, hueTrack(), (v) => ({ hue: v })));
+  rows.push(slide("vivid", at.vivid, 100, vividTrack(at.hue), (v) => ({ vivid: v })));
+  return rows;
+}
+
+/**
+ * Everything on the panel that a rebuild would have brought up to date, minus
+ * the rebuild: the selected ring moves to her own swatch, that swatch takes her
+ * new colours, and the vividness track follows the hue it is now shading.
+ */
+function syncPicker(rows) {
+  if (!box) return;
+  for (const el of box.querySelectorAll(".swatch.on")) {
+    el.classList.remove("on");
+    el.setAttribute("aria-pressed", "false");
+  }
+
+  const vars = customScheme().vars;
+  const mine = box.querySelector(".swatch.mine");
+  if (mine) {
+    mine.classList.add("on");
+    mine.setAttribute("aria-pressed", "true");
+    mine.style.background = vars.ground;
+    const bars = mine.querySelectorAll("i");
+    [vars.accent, vars.magenta, vars.cyan].forEach((c, i) => {
+      if (bars[i]) bars[i].style.background = c;
+    });
+  }
+
+  const vivid = rows[1]?.querySelector(".slider");
+  if (vivid) vivid.style.background = vividTrack(currentLook().custom.hue);
 }
 
 function optionsPanel() {
@@ -99,15 +166,10 @@ function optionsPanel() {
       h("span", { text: "options" })),
 
     h("p", { class: "menu-sec", text: "colour scheme" }),
-    h("div", { class: "swatches" }, schemes.map(swatch)),
+    h("div", { class: "swatches" }, schemes.concat(customScheme()).map(swatch)),
 
-    h("p", { class: "menu-sec", text: "app icon" }),
-    h("div", { class: "picks" }, icons.map(iconPick)),
-
-    // The one thing in here that cannot take effect where she is standing: iOS
-    // reads the icon once, when the shortcut is added, and never again.
-    h("p", { class: "menu-note",
-      text: "Pick before adding it to your Home Screen — iOS keeps the icon it was added with." }),
+    h("p", { class: "menu-sec", text: "or mix your own" }),
+    picker(),
   ];
 }
 
@@ -121,7 +183,7 @@ let box = null;
 function fill() {
   if (!box) return;
   clear(box);
-  for (const el of panel === "options" ? optionsPanel() : rootPanel()) box.append(el);
+  for (const el of (panel === "options" ? optionsPanel() : rootPanel()).flat()) box.append(el);
 }
 
 /**

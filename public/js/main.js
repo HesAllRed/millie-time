@@ -17,7 +17,7 @@ import { renderSort, resetSort } from "./views/sort.js";
 import { renderDeck, resetDeck } from "./views/deck.js";
 import { renderStepper, renderSent, renderFallback } from "./views/send.js";
 import { renderDebug, installLogging, record } from "./views/debug.js";
-import { loadLook, applyLook, currentScheme, currentIcon } from "./theme.js";
+import { loadLook, applyLook, lookLabel } from "./theme.js";
 import { installMenu } from "./menu.js";
 import { installConfetti } from "./confetti.js";
 
@@ -31,7 +31,7 @@ installLogging();
 // one write to the root element rather than a repaint of a rendered screen.
 loadLook();
 applyLook();
-record("look", `${currentScheme().id} · icon ${currentIcon().id}`);
+record("look", lookLabel());
 
 loadSession();
 

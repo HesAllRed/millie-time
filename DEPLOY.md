@@ -116,24 +116,8 @@ That also clears the app's storage, so any autosaved captions go with it.
 Practical consequence: **settle the icon before she installs it.** Changing it
 afterwards means asking her to delete and re-add the app.
 
-This is also what the icon colours under **options** are bounded by. Picking one
-repoints the `apple-touch-icon` link, which is what iOS reads *at the moment the
-shortcut is added* — so the choice decides what the next install gets, and does
-nothing to a shortcut already sitting on a home screen. The panel says so.
-
-Practically: let her pick a colour first, then do the install. Changing her mind
-later is the same delete-and-re-add as any other icon change.
-
-The colours themselves come from `tools/icon-maker.html`, which draws the same
-artwork from a table of palettes and writes every file:
-
-```bash
-node tools/icon-server.mjs     # then open http://localhost:8787 — it saves itself
-```
-
-It uses the app's own self-hosted Bricolage, so the wordmark matches exactly and
-it works with no signal. Adding a colour is a row in `PALETTES` there and a row
-in `icons` in `public/js/theme.js`, under the same id.
+Nothing in the app can reach it either, which is why **options** offers the
+colours the app wears and says nothing about the icon.
 
 ### Testing a risky change without touching her copy
 
@@ -153,11 +137,12 @@ Everything you'd want to reword lives in **`public/js/config.js`** — the tagli
 the typeface it uses, the word after a successful send, the heading on the print,
 the length of the week. No logic in that file; edit, commit, push.
 
-The colours she chooses between live in **`public/js/theme.js`**, in the same
-spirit: a still scheme is twelve colours and a name, a moving one is a function
-from hue to those twelve. Two rules, both tested — every scheme paints the same
-set of variables on every frame, and every one keeps a dark ground under a light
-accent, because the whole app puts dark ink on accent-coloured buttons.
+The colours live in **`public/js/theme.js`**, in the same spirit: a still scheme
+is twelve colours and a name, a moving one is a function from hue to those
+twelve, and the two sliders in the menu are that same function with her thumb on
+it. Two rules, both tested — every scheme paints the same set of variables on
+every frame, and every one keeps a dark ground under a light accent, because the
+whole app puts dark ink on accent-coloured buttons.
 
 Fonts are self-hosted in `public/fonts/` so the app works with no signal. To make
 another face selectable, drop the `.woff2` in there, add an `@font-face` and a

@@ -1,4 +1,4 @@
-// The look — colour schemes, the moving ones, and the icon.
+// The look — the colour schemes, the moving ones, and the one she mixes.
 //
 // The first two matter most. A scheme that forgets a variable doesn't throw, it
 // leaves the previous scheme's colour in place and you get a palette nobody
@@ -18,17 +18,12 @@ function installFakeDom() {
     getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
   });
   const meta = el({ name: "theme-color", content: "#101116" });
-  const tab = el({ rel: "icon", href: "./icons/icon-192.png" });
-  const apple = el({ rel: "apple-touch-icon", href: "./icons/apple-touch-icon.png" });
 
   globalThis.document = {
     documentElement: { style: { setProperty: (k, v) => vars.set(k, v) } },
-    querySelector: (sel) =>
-      sel.includes("theme-color") ? meta :
-      sel.includes("apple-touch-icon") ? apple :
-      sel.includes("icon") ? tab : null,
+    querySelector: (sel) => (sel.includes("theme-color") ? meta : null),
   };
-  return { vars, meta, tab, apple };
+  return { vars, meta };
 }
 
 function installLocalStorage() {
@@ -63,7 +58,6 @@ beforeEach(() => {
   store.clear();
   dom.vars.clear();
   T.setScheme(T.schemes[0].id);
-  T.setIcon(T.icons[0].id);
 });
 
 /** Every palette a scheme can ever show: the still one, plus frames if it moves. */
@@ -92,17 +86,52 @@ test("every colour a scheme can show is a complete hex value", () => {
   }
 });
 
-// Rule 2 of the file, mechanically: app.css puts --ink on --accent fills all
-// over, so a scheme that darkened the accent would hide half the buttons.
+/** Rule 2: app.css puts --ink on --accent fills all over. */
+function assertLegible(palette, where) {
+  assert.ok(luminance(palette.accent) > 0.35, `${where}: accent is too dark for dark ink`);
+  assert.ok(luminance(palette.ground) < 0.05, `${where}: ground is too light`);
+  assert.ok(luminance(palette.ink) < 0.05, `${where}: ink is too light for an accent fill`);
+  assert.ok(luminance(palette.bone) > 0.6, `${where}: body text is too dark to read`);
+}
+
 test("every scheme keeps a light accent over a dark ground", () => {
   for (const scheme of T.schemes) {
-    for (const palette of palettesOf(scheme)) {
-      assert.ok(luminance(palette.accent) > 0.35, `${scheme.id}: accent is too dark for dark ink`);
-      assert.ok(luminance(palette.ground) < 0.05, `${scheme.id}: ground is too light`);
-      assert.ok(luminance(palette.ink) < 0.05, `${scheme.id}: ink is too light for an accent fill`);
-      assert.ok(luminance(palette.bone) > 0.6, `${scheme.id}: body text is too dark to read`);
+    for (const palette of palettesOf(scheme)) assertLegible(palette, scheme.id);
+  }
+});
+
+// The one that lets the picker be handed over without a warning: there is no
+// hue, and no position of the vividness slider, that makes the app unreadable.
+test("nothing the picker can reach is illegible", () => {
+  for (let hue = 0; hue < 360; hue += 5) {
+    for (const vivid of [0, 0.15, 0.4, 0.75, 1]) {
+      assertLegible(T.spectrum(hue, vivid), `custom ${hue}° at ${vivid}`);
     }
   }
+});
+
+test("the vividness slider runs all the way to grey and stays there", () => {
+  const grey = T.spectrum(210, 0);
+  assert.equal(grey.accent, T.spectrum(40, 0).accent, "at zero the hue stops mattering");
+  assert.equal(T.hslOf(grey.accent).s, 0);
+  assert.ok(T.hslOf(T.spectrum(210, 1).accent).s > 80, "and at full it is vivid");
+});
+
+test("an out-of-range vividness is clamped rather than inverted", () => {
+  assert.deepEqual(T.spectrum(120, 4), T.spectrum(120, 1));
+  assert.deepEqual(T.spectrum(120, -2), T.spectrum(120, 0));
+});
+
+// Only for colours with enough saturation to have a hue worth reading: at 14%
+// of it the eight bits per channel a hex value gets are too coarse to say.
+test("hslOf reads back what hsl wrote", () => {
+  for (const [h, s, l] of [[0, 100, 50], [210, 60, 40], [300, 90, 82], [47, 65, 62]]) {
+    const back = T.hslOf(T.hsl(h, s, l));
+    assert.ok(Math.abs(back.h - h) <= 1, `hue ${h} came back as ${back.h}`);
+    assert.ok(Math.abs(back.s - s) <= 1, `saturation ${s} came back as ${back.s}`);
+    assert.ok(Math.abs(back.l - l) <= 1, `lightness ${l} came back as ${back.l}`);
+  }
+  assert.equal(T.hslOf("#808080").s, 0, "grey has no hue to speak of");
 });
 
 test("the moving schemes actually move, and come back round", () => {
@@ -143,27 +172,33 @@ test("hsl converts the corners of the wheel", () => {
 
 test("ids are unique, so a lookup can never be ambiguous", () => {
   assert.equal(new Set(T.schemes.map((s) => s.id)).size, T.schemes.length);
-  assert.equal(new Set(T.icons.map((i) => i.id)).size, T.icons.length);
+  assert.ok(!T.schemes.some((s) => s.id === T.CUSTOM), "hers is not one of the presets");
 });
 
 test("an unknown id falls back to the first entry rather than nothing", () => {
   assert.equal(T.schemeById("chartreuse").id, T.schemes[0].id);
   assert.equal(T.schemeById(undefined).id, T.schemes[0].id);
-  assert.equal(T.iconById("bulldozer").id, T.icons[0].id);
-});
-
-test("every icon names a file of each kind", () => {
-  for (const icon of T.icons) {
-    assert.match(icon.apple, /^\.\/icons\/apple-touch-icon.*\.png$/, `${icon.id} apple icon`);
-    assert.match(icon.tab, /^\.\/icons\/icon-192.*\.png$/, `${icon.id} tab icon`);
-  }
+  assert.equal(T.schemeById(T.CUSTOM).id, T.CUSTOM, "but hers is a real answer");
 });
 
 test("readLook keeps what it recognises and discards the rest", () => {
-  assert.deepEqual(T.readLook({ scheme: "mint", icon: "gold" }), { scheme: "mint", icon: "gold" });
-  assert.deepEqual(T.readLook({ scheme: "rainbow" }), { scheme: "rainbow", icon: T.icons[0].id });
-  assert.deepEqual(T.readLook(null), { scheme: T.schemes[0].id, icon: T.icons[0].id });
-  assert.deepEqual(T.readLook("nonsense"), { scheme: T.schemes[0].id, icon: T.icons[0].id });
+  const stock = T.readLook(null);
+  assert.equal(stock.scheme, T.schemes[0].id);
+  assert.ok(stock.custom.hue >= 0 && stock.custom.hue < 360);
+
+  assert.deepEqual(T.readLook({ scheme: "mint", custom: { hue: 12, vivid: 40 } }),
+    { scheme: "mint", custom: { hue: 12, vivid: 40 } });
+  assert.equal(T.readLook({ scheme: T.CUSTOM }).scheme, T.CUSTOM);
+  assert.deepEqual(T.readLook("nonsense").custom, stock.custom);
+});
+
+test("a stored colour that has gone strange is brought back into range", () => {
+  assert.equal(T.readLook({ custom: { hue: 400 } }).custom.hue, 40, "a hue past the turn wraps");
+  assert.equal(T.readLook({ custom: { hue: -30 } }).custom.hue, 330, "and so does a negative one");
+  assert.equal(T.readLook({ custom: { vivid: 900 } }).custom.vivid, 100, "vividness is clamped");
+  assert.equal(T.readLook({ custom: { vivid: -5 } }).custom.vivid, 0);
+  assert.deepEqual(T.readLook({ custom: { hue: "purple", vivid: null } }).custom,
+    T.readLook(null).custom, "nonsense falls back whole");
 });
 
 test("paintVars writes every variable, prefixed", () => {
@@ -182,7 +217,45 @@ test("choosing a scheme repaints, retints the status bar and persists", () => {
   assert.equal(T.currentScheme().id, "gold");
   assert.equal(dom.vars.get("--accent"), gold.vars.accent);
   assert.equal(dom.meta.getAttribute("content"), gold.vars.ground);
-  assert.deepEqual(JSON.parse(store.get(KEY)), { scheme: "gold", icon: T.icons[0].id });
+  assert.equal(JSON.parse(store.get(KEY)).scheme, "gold");
+});
+
+test("mixing her own paints it and becomes the scheme in play", () => {
+  T.setCustom({ hue: 18, vivid: 70 });
+
+  assert.equal(T.currentScheme().id, T.CUSTOM);
+  assert.deepEqual(T.currentLook().custom, { hue: 18, vivid: 70 });
+  assert.equal(dom.vars.get("--accent"), T.spectrum(18, 0.7).accent);
+  assert.equal(dom.meta.getAttribute("content"), T.spectrum(18, 0.7).ground);
+});
+
+test("one slider moves without dragging the other with it", () => {
+  T.setCustom({ hue: 18, vivid: 70 });
+  T.setCustom({ hue: 200 });
+  assert.deepEqual(T.currentLook().custom, { hue: 200, vivid: 70 });
+  T.setCustom({ vivid: 25 });
+  assert.deepEqual(T.currentLook().custom, { hue: 200, vivid: 25 });
+});
+
+// Stored a beat later, not on every pixel of the drag — a hundred writes for
+// one gesture is what this avoids.
+test("a mixed colour is written out once the thumb settles", async () => {
+  await new Promise((r) => setTimeout(r, 260));   // let any earlier drag settle
+  store.clear();
+
+  T.setCustom({ hue: 305, vivid: 88 });
+  assert.equal(store.get(KEY), undefined, "nothing written yet");
+
+  await new Promise((r) => setTimeout(r, 260));
+  assert.deepEqual(JSON.parse(store.get(KEY)),
+    { scheme: T.CUSTOM, custom: { hue: 305, vivid: 88 } });
+});
+
+test("the label says enough to debug from", () => {
+  T.setScheme("mint");
+  assert.equal(T.lookLabel(), "mint");
+  T.setCustom({ hue: 44, vivid: 60 });
+  assert.match(T.lookLabel(), /^custom 44° at 60%$/);
 });
 
 // Nothing here can animate — there is no requestAnimationFrame in node — so a
@@ -195,25 +268,16 @@ test("a moving scheme still paints something without a frame loop", () => {
   assert.equal(dom.vars.get("--ground"), still.ground);
 });
 
-test("choosing an icon repoints both links and persists", () => {
-  T.setIcon("rainbow");
-  const rainbow = T.iconById("rainbow");
+test("her own colour survives a relaunch", () => {
+  store.set(KEY, JSON.stringify({ scheme: T.CUSTOM, custom: { hue: 96, vivid: 55 } }));
+  T.loadLook();
+  T.applyLook();
 
-  assert.equal(dom.apple.getAttribute("href"), rainbow.apple);
-  assert.equal(dom.tab.getAttribute("href"), rainbow.tab);
-  assert.deepEqual(JSON.parse(store.get(KEY)), { scheme: T.schemes[0].id, icon: "rainbow" });
-
-  T.setIcon(T.icons[0].id);
-  assert.equal(dom.apple.getAttribute("href"), T.icons[0].apple);
-});
-
-test("the choice survives a relaunch", () => {
-  store.set(KEY, JSON.stringify({ scheme: "aurora", icon: "mint" }));
-  assert.deepEqual(T.loadLook(), { scheme: "aurora", icon: "mint" });
-  assert.equal(T.currentIcon().apple, T.iconById("mint").apple);
+  assert.equal(T.currentScheme().id, T.CUSTOM);
+  assert.equal(dom.vars.get("--accent"), T.spectrum(96, 0.55).accent);
 });
 
 test("a stored look that has gone bad leaves the defaults standing", () => {
   store.set(KEY, "{not json");
-  assert.deepEqual(T.loadLook(), { scheme: T.schemes[0].id, icon: T.icons[0].id });
+  assert.deepEqual(T.loadLook(), T.readLook(null));
 });
