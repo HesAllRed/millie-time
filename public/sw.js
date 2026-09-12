@@ -8,7 +8,7 @@
 // If this ever ships broken: a standalone PWA has no reload button, so three
 // taps on the version stamp in the footer clears every cache and hard-reloads.
 
-const CACHE_VERSION = "millie-v1.0.14";
+const CACHE_VERSION = "millie-v1.1.14";
 
 const SHELL = [
   "./",
@@ -27,6 +27,9 @@ const SHELL = [
   "./js/probe.js",
   "./js/resize.js",
   "./js/ui.js",
+  "./js/theme.js",
+  "./js/menu.js",
+  "./js/confetti.js",
   "./js/views/intake.js",
   "./js/views/sort.js",
   "./js/views/deck.js",

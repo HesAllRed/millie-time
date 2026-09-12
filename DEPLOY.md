@@ -116,6 +116,9 @@ That also clears the app's storage, so any autosaved captions go with it.
 Practical consequence: **settle the icon before she installs it.** Changing it
 afterwards means asking her to delete and re-add the app.
 
+Nothing in the app can reach it either, which is why **options** offers the
+colours the app wears and says nothing about the icon.
+
 ### Testing a risky change without touching her copy
 
 ```bash
@@ -133,6 +136,13 @@ points at anything you haven't seen working.
 Everything you'd want to reword lives in **`public/js/config.js`** — the tagline,
 the typeface it uses, the word after a successful send, the heading on the print,
 the length of the week. No logic in that file; edit, commit, push.
+
+The colours live in **`public/js/theme.js`**, in the same spirit: a still scheme
+is twelve colours and a name, a moving one is a function from hue to those
+twelve, and the two sliders in the menu are that same function with her thumb on
+it. Two rules, both tested — every scheme paints the same set of variables on
+every frame, and every one keeps a dark ground under a light accent, because the
+whole app puts dark ink on accent-coloured buttons.
 
 Fonts are self-hosted in `public/fonts/` so the app works with no signal. To make
 another face selectable, drop the `.woff2` in there, add an `@font-face` and a

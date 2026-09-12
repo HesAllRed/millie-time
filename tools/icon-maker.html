@@ -3,8 +3,16 @@
 <head>
 <meta charset="utf-8">
 <title>Millie Time — icon maker</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap">
 <style>
+  /* The app's own font file, not the one from Google Fonts. The icon has to
+     match the wordmark inside the app exactly, and this way the tool also works
+     with no signal — which is the rest of the project's rule too. */
+  @font-face{
+    font-family: "Bricolage Grotesque";
+    src: url("../public/fonts/bricolage.woff2") format("woff2"),
+         url("/fonts/bricolage.woff2") format("woff2");
+    font-weight: 400 800;
+  }
   body{ background:#101116; color:#F0E7E1; font-family:system-ui,sans-serif; margin:0; padding:40px 24px 80px; }
   h1{ font-family:"Bricolage Grotesque",sans-serif; font-weight:800; letter-spacing:-.03em; margin:0 0 6px; }
   p{ color:#A9A29E; max-width:62ch; line-height:1.6; margin:0 0 28px; }

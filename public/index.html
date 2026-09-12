@@ -29,6 +29,15 @@
     <button id="stamp" type="button" class="stamp" aria-label="Version. Tap three times to reset the app."></button>
   </footer>
 
+  <!-- The menu sits outside #app on purpose: every view render clears #app, and
+       the button has to survive that. -->
+  <button id="menubtn" type="button" class="menubtn"
+          aria-label="Open menu" aria-expanded="false" aria-haspopup="true" aria-controls="menu">
+    <span class="bars" aria-hidden="true"><i></i><i></i><i></i></span>
+  </button>
+  <div id="menu" class="menu" hidden></div>
+  <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
+
   <!-- Apple's picker opens newest-first. There is no API to query the camera
        roll by date, so this is the only way in. -->
   <input id="picker" type="file" accept="image/*,video/*" multiple hidden>

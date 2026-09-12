@@ -29,6 +29,16 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // The page draws the wordmark in the app's own font, so it has to be able
+    // to reach it — same file the app self-hosts, no network anywhere.
+    if (req.url.startsWith("/fonts/")) {
+      const name = path.basename(req.url);
+      const font = await readFile(path.join(root, "public", "fonts", name));
+      res.writeHead(200, { "content-type": "font/woff2" });
+      res.end(font);
+      return;
+    }
+
     if (req.url === "/" || req.url.startsWith("/index.html")) {
       const html = await readFile(path.join(root, "tools", "icon-maker.html"));
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });

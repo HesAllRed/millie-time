@@ -1,8 +1,14 @@
 /* ==========================================================================
    Millie Time
-   Dark only, on purpose. Lavender leads, magenta marks whatever is being
+   Dark only, on purpose. The accent leads, magenta marks whatever is being
    touched, cyan carries information. Every colour is painted explicitly —
    there is no light theme to fall back to.
+
+   The values below are the Lavender scheme, and they are also the defaults:
+   theme.js rewrites these same custom properties on the root element when she
+   picks another one, so nothing further down this file ever names a palette
+   colour directly. --ink is the dark text that goes *on* an accent or magenta
+   fill, which is why every scheme keeps a light accent over a dark ground.
    ========================================================================== */
 
 @font-face { font-family: "Bricolage Grotesque"; src: url("./fonts/bricolage.woff2") format("woff2"); font-weight: 400 800; font-display: swap; }
@@ -21,9 +27,10 @@
   --bone-dim: #A9A29E;
   --bone-mute:#6E6A69;
 
-  --accent:#D3D3FF;
+  --accent:   #D3D3FF;
   --magenta:  #E0479E;
   --cyan:     #4FC3D9;
+  --ink:      #141024;
 
   --ui:   "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
   --hand: "Fraunces", Georgia, "Times New Roman", serif;
@@ -105,6 +112,34 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 }
 #app.entering{ animation: smear-in .52s cubic-bezier(.65,0,.35,1) both; }
 
+/* Sideways, for the one step that is really a swipe: "Looks right" into the
+   deck, and back out of it. The outgoing screen only travels a quarter of the
+   way and dims, so the new one reads as arriving over it rather than as two
+   screens sliding past each other in lockstep.
+
+   The direction is a class on the *root* element, because ::view-transition-old
+   and -new hang off the root — a class on #app can never reach them. See
+   render() in main.js. */
+@keyframes push-in-right{ from{ transform: translateX(100%); } to  { transform: translateX(0); } }
+@keyframes push-in-left { from{ transform: translateX(-100%);} to  { transform: translateX(0); } }
+@keyframes push-out-left{ from{ transform: translateX(0); opacity: 1; } to{ transform: translateX(-26%); opacity: .3; } }
+@keyframes push-out-right{from{ transform: translateX(0); opacity: 1; } to{ transform: translateX(26%);  opacity: .3; } }
+
+:root.nav-fwd::view-transition-old(root) { animation: push-out-left .34s cubic-bezier(.32,.72,0,1) both; }
+:root.nav-fwd::view-transition-new(root) { animation: push-in-right .34s cubic-bezier(.32,.72,0,1) both; }
+:root.nav-back::view-transition-old(root){ animation: push-out-right .34s cubic-bezier(.32,.72,0,1) both; }
+:root.nav-back::view-transition-new(root){ animation: push-in-left  .34s cubic-bezier(.32,.72,0,1) both; }
+
+/* The same shape for older iOS, which has no View Transitions. */
+#app.leaving.nav-fwd, #app.leaving.nav-back{
+  filter: none; opacity: .3;
+  transition: opacity .26s cubic-bezier(.32,.72,0,1), transform .26s cubic-bezier(.32,.72,0,1);
+}
+#app.leaving.nav-fwd { transform: translateX(-26%); }
+#app.leaving.nav-back{ transform: translateX(26%); }
+#app.entering.nav-fwd { animation: push-in-right .34s cubic-bezier(.32,.72,0,1) both; }
+#app.entering.nav-back{ animation: push-in-left  .34s cubic-bezier(.32,.72,0,1) both; }
+
 .spacer{ flex: 1 1 auto; min-height: 6px; }
 .scroll{ flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
@@ -117,8 +152,9 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 }
 .linkish{ display: block; }
 
-/* Back link on the left, where-am-I on the right. */
-.topbar{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* Back link on the left, where-am-I on the right — and then a gutter, because
+   the menu button is parked in that corner on every screen. */
+.topbar{ display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 42px; }
 .topbar .brandline{ color: var(--bone-mute); }
 .topbar .linkish{ color: var(--accent); }
 
@@ -149,7 +185,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 
 .btn{
   display: block; width: 100%; text-align: center;
-  border: 2px solid var(--bone); background: var(--accent); color: #141024;
+  border: 2px solid var(--bone); background: var(--accent); color: var(--ink);
   font-family: var(--ui); font-weight: 800; font-size: 17px;
   letter-spacing: .03em; text-transform: uppercase;
   padding: 17px 16px; border-radius: 3px; box-shadow: 5px 5px 0 var(--bone);
@@ -313,9 +349,12 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 
 /* --- sort ---------------------------------------------------------------- */
 
-.tray{ border: 2px solid var(--accent); border-radius: 3px; background: rgba(211,211,255,.07); padding: 12px; margin: 14px 0 4px; }
+/* The wash and the glow follow the accent through a scheme change. The plain
+   value first is the fallback for a browser without color-mix — the Lavender
+   tint, which is what this was before there were schemes. */
+.tray{ border: 2px solid var(--accent); border-radius: 3px; background: rgba(211,211,255,.07); background: color-mix(in srgb, var(--accent) 8%, transparent); padding: 12px; margin: 14px 0 4px; }
 .tray-h{ display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
-.badge{ background: var(--accent); color: #141024; font-weight: 700; border-radius: 99px; padding: 1px 7px; font-size: 10.5px; }
+.badge{ background: var(--accent); color: var(--ink); font-weight: 700; border-radius: 99px; padding: 1px 7px; font-size: 10.5px; }
 .dayrow{ padding: 13px 0; border-bottom: 1px solid var(--edge-soft); }
 .dayrow-h{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--bone-dim); }
 .dayrow-h b{ color: var(--bone); font-weight: 500; }
@@ -329,7 +368,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
   font-family: var(--ui); font-weight: 700; font-size: 13px; letter-spacing: .04em; text-transform: uppercase;
   border: 2px solid var(--edge); color: var(--bone-dim); padding: 9px 12px; border-radius: 3px; background: var(--ground);
 }
-.chip.on{ border-color: var(--magenta); color: #1A0A12; background: var(--magenta); }
+.chip.on{ border-color: var(--magenta); color: var(--ink); background: var(--magenta); }
 .sheet-x{ display: block; width: 100%; margin-top: 12px; background: none; border: 0; padding: 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--magenta); }
 
 /* --- print --------------------------------------------------------------- */
@@ -365,7 +404,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .step.ok{ opacity: .6; }
 .step[disabled]{ opacity: .4; }
 .step .n{ font-family: var(--mono); font-size: 12px; font-weight: 700; flex: 0 0 auto; width: 26px; height: 26px; border-radius: 99px; display: grid; place-items: center; border: 2px solid var(--bone-mute); color: var(--bone-mute); }
-.step.now .n{ border-color: var(--accent); color: #141024; background: var(--accent); }
+.step.now .n{ border-color: var(--accent); color: var(--ink); background: var(--accent); }
 .step.ok .n{ border-color: var(--cyan); color: var(--cyan); }
 .step h4{ margin: 0 0 3px; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
 .step p{ margin: 0; font-size: 12.5px; color: var(--bone-dim); line-height: 1.5; }
@@ -383,6 +422,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
   flex: 0 0 auto; margin: 0 auto; text-align: center;
   font-size: 76px; line-height: 1;
   filter: drop-shadow(0 0 20px rgba(211,211,255,.45));
+  filter: drop-shadow(0 0 20px color-mix(in srgb, var(--accent) 45%, transparent));
 }
 .orb span{ display: inline-block; animation: invader-dance 7s ease-in-out infinite; }
 .orb.pulse{ animation: invader-breathe 2.1s ease-in-out infinite; }
@@ -411,8 +451,10 @@ button{ font: inherit; color: inherit; cursor: pointer; }
   .orb span{ animation: none; }
   .cres, .cres-wrap, .dots .dot{ transition: none; }
   ::view-transition-old(root), ::view-transition-new(root){ animation: none; }
-  #app.leaving{ opacity: 1; transform: none; filter: none; transition: none; }
-  #app.entering{ animation: none; }
+  :root.nav-fwd::view-transition-old(root), :root.nav-fwd::view-transition-new(root),
+  :root.nav-back::view-transition-old(root), :root.nav-back::view-transition-new(root){ animation: none; }
+  #app.leaving, #app.leaving.nav-fwd, #app.leaving.nav-back{ opacity: 1; transform: none; filter: none; transition: none; }
+  #app.entering, #app.entering.nav-fwd, #app.entering.nav-back{ animation: none; }
 }
 
 /* --- day grid overlay ---------------------------------------------------- */
@@ -433,6 +475,166 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .dbg-row b.bad{ color: var(--magenta); }
 .dbg-h{ font-family: var(--mono); font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent); margin: 12px 0 8px; }
 .dbg-log{ font-family: var(--mono); font-size: 10px; line-height: 1.6; color: var(--bone-dim); background: var(--surface); border: 1px solid var(--edge); border-radius: 3px; padding: 10px; white-space: pre-wrap; word-break: break-word; margin: 0 0 14px; -webkit-user-select: text; user-select: text; }
+
+/* --- the menu ------------------------------------------------------------
+   Absolutely positioned inside <body>, not fixed: the shell follows the visual
+   viewport (main.js keeps body.top in step with it), and a fixed button stays
+   pinned to the layout viewport instead — so it would drift up the screen the
+   moment the keyboard opened. Outside #app, because every render clears #app.
+   -------------------------------------------------------------------------- */
+
+.menubtn{
+  position: absolute; z-index: 80;
+  top: calc(env(safe-area-inset-top) + 10px);
+  right: calc(env(safe-area-inset-right) + 12px);
+  width: 40px; height: 40px; padding: 0;
+  background: none; border: 0;
+  display: grid; place-items: center;
+  transition: opacity .2s ease;
+}
+/* Out of the way while she is writing — a floating button beside the keyboard
+   is a mis-tap waiting to happen. Never while it is the way out of the menu. */
+.kb-open:not(.menu-open) .menubtn{ opacity: 0; pointer-events: none; }
+
+.menubtn .bars{ display: block; position: relative; width: 22px; height: 14px; }
+.menubtn .bars i{
+  position: absolute; left: 0; right: 0; height: 2.5px; border-radius: 2px;
+  /* The same accent as CONTINUE, as MILLIE TIME, as the weekday. */
+  background: var(--accent);
+  transition: transform .26s cubic-bezier(.34,1.4,.64,1), opacity .16s ease;
+}
+.menubtn .bars i:nth-child(1){ top: 0; }
+.menubtn .bars i:nth-child(2){ top: 50%; margin-top: -1.25px; }
+.menubtn .bars i:nth-child(3){ bottom: 0; }
+
+/* Three lines into an X. Closing is the same button in the same place, which is
+   the only thing that makes a corner button findable twice. */
+.menu-open .menubtn .bars i:nth-child(1){ transform: translateY(5.75px) rotate(45deg); }
+.menu-open .menubtn .bars i:nth-child(2){ opacity: 0; transform: scaleX(.3); }
+.menu-open .menubtn .bars i:nth-child(3){ transform: translateY(-5.75px) rotate(-45deg); }
+
+.menu{ position: absolute; inset: 0; z-index: 79; }
+.menu[hidden]{ display: none; }
+.menu-scrim{ position: absolute; inset: 0; background: rgba(0,0,0,.5); }
+
+.menu-box{
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 58px);
+  right: calc(env(safe-area-inset-right) + 12px);
+  width: min(286px, calc(100% - 24px));
+  max-height: calc(100% - env(safe-area-inset-top) - 92px);
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: var(--surface); color: var(--bone);
+  border: 2px solid var(--bone); border-radius: 3px;
+  box-shadow: 6px 6px 0 rgba(0,0,0,.55);
+  padding: 8px;
+  transform-origin: top right;
+  animation: menu-bounce .42s cubic-bezier(.22,1.5,.5,1) both;
+}
+
+/* Out of the corner it was tapped in, with a bit of overshoot on the way. */
+@keyframes menu-bounce{
+  0%  { opacity: 0; transform: translate(12px,-16px) scale(.6); }
+  55% { opacity: 1; transform: translate(0,0) scale(1.05); }
+  78% { transform: scale(.98); }
+  100%{ opacity: 1; transform: translate(0,0) scale(1); }
+}
+@keyframes menu-gone{
+  from{ opacity: 1; transform: scale(1); }
+  to  { opacity: 0; transform: translate(10px,-12px) scale(.76); }
+}
+.menu.closing .menu-box{ animation: menu-gone .17s cubic-bezier(.4,0,1,1) both; }
+.menu.closing .menu-scrim{ opacity: 0; transition: opacity .17s ease; }
+
+.menu-item{
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; text-align: left; background: none; border: 0;
+  padding: 15px 12px; border-radius: 2px;
+  font-family: var(--ui); font-weight: 800; font-size: 19px; letter-spacing: -.01em;
+}
+.menu-item + .menu-item{ border-top: 1px solid var(--edge-soft); }
+.menu-item:active{ background: var(--surface-2); }
+.menu-item .cue{ font-family: var(--mono); font-size: 12px; letter-spacing: .12em; color: var(--accent); }
+
+.menu-h{ display: flex; align-items: center; gap: 8px; padding: 4px 6px 10px; border-bottom: 1px solid var(--edge-soft); }
+.menu-h .back{ background: none; border: 0; padding: 4px 8px; color: var(--accent); font-family: var(--mono); font-size: 14px; }
+.menu-h span{ font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--bone-dim); }
+.menu-sec{ font-family: var(--mono); font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--bone-mute); margin: 14px 6px 9px; }
+.menu-note{ font-family: var(--mono); font-size: 9.5px; line-height: 1.7; color: var(--bone-mute); margin: 14px 6px 4px; }
+
+.swatches{ display: flex; flex-wrap: wrap; gap: 9px; padding: 0 6px; }
+.swatch{
+  position: relative; width: 46px; height: 46px; padding: 0; overflow: hidden;
+  border: 2px solid var(--edge); border-radius: 3px; background: none;
+}
+.swatch.on{ border-color: var(--bone); box-shadow: 3px 3px 0 var(--accent); }
+.swatch:active{ transform: translate(1px,1px); }
+
+/* Three bars of the scheme it is offering, over that scheme's own ground —
+   painted from theme.js's values, never from the variables in play. */
+.swatch i{ position: absolute; left: 0; right: 0; height: 33.34%; display: block; }
+
+/* A moving scheme gets the wheel it turns rather than three bars of one frame,
+   which would look like a scheme that doesn't move. */
+.swatch .wheel{
+  position: absolute; inset: -30%; height: auto; border-radius: 50%;
+  /* The gradient itself is set inline, from the scheme's own frames. */
+  animation: wheel-turn 5.5s linear infinite;
+}
+@keyframes wheel-turn{ to{ transform: rotate(1turn); } }
+
+/* --- her own colour ------------------------------------------------------
+   Two sliders whose tracks are the thing they choose from: the hue one is the
+   wheel laid flat, the vividness one runs from grey to the colour it will
+   actually paint. No swatch beside them, because the preview is the app.
+   -------------------------------------------------------------------------- */
+.slide-row{ display: flex; align-items: center; gap: 10px; padding: 0 6px; margin-bottom: 12px; }
+.slide-l{
+  flex: 0 0 34px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--bone-mute);
+}
+.slider{
+  -webkit-appearance: none; appearance: none;
+  flex: 1 1 auto; min-width: 0; height: 16px; margin: 0;
+  border: 2px solid var(--edge); border-radius: 99px;
+  /* The gradient itself is inline: it is made of the colours on offer. */
+}
+.slider::-webkit-slider-runnable-track{ height: 12px; background: transparent; border: 0; }
+.slider::-moz-range-track{ height: 12px; background: transparent; border: 0; }
+/* A thumb the size of a thumb — 26px, well over the 44px target once the row's
+   own height is counted, and painted in the colour it is currently choosing. */
+.slider::-webkit-slider-thumb{
+  -webkit-appearance: none; appearance: none;
+  width: 26px; height: 26px; margin-top: -9px; border-radius: 50%;
+  background: var(--accent); border: 3px solid var(--bone);
+  box-shadow: 0 2px 5px rgba(0,0,0,.55);
+}
+.slider::-moz-range-thumb{
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); border: 3px solid var(--bone);
+}
+.slider:active::-webkit-slider-thumb{ transform: scale(1.12); }
+
+/* Above everything, including the menu it was thrown from.
+
+   width/height rather than inset alone: a canvas is a replaced element, so it
+   keeps its intrinsic 300x150 box under inset:0 and the spray lands outside it
+   — visibly, as confetti that only appears in the top-left corner. */
+.confetti{ position: absolute; inset: 0; width: 100%; height: 100%; z-index: 90; pointer-events: none; }
+
+/* Here rather than in the block further up, because these rules are declared
+   after it and would otherwise win on source order. The confetti quiets itself
+   in confetti.js — it is drawn, so no stylesheet can reach it. */
+@media (prefers-reduced-motion: reduce){
+  .menu-box{ animation: none; }
+  .menu.closing .menu-box{ animation: none; }
+  .menubtn .bars i{ transition: none; }
+  .swatch:active{ transform: none; }
+  .slider:active::-webkit-slider-thumb{ transform: none; }
+  /* Still, but still every colour at once — it has to stay legible as the
+     choice that moves, since theme.js holds it on one frame here too. */
+  .swatch .wheel{ animation: none; }
+}
 
 /* --- utilities -----------------------------------------------------------
    Last in the file on purpose. `.centred` and a component rule like
