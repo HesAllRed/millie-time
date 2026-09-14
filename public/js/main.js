@@ -456,16 +456,60 @@ installMenu({
   shell: body,
 });
 
-// --- the escape hatch ------------------------------------------------------
+// --- the version stamp -----------------------------------------------------
 //
-// A standalone PWA has no reload button and no URL bar, so a bad cached shell
-// would trap her with no way out. Three taps on the version stamp clears every
+// Two jobs, in one quiet line of type at the bottom of the screen.
+//
+// The escape hatch: a standalone PWA has no reload button and no URL bar, so a
+// bad cached shell would trap her with no way out. Three taps clears every
 // cache and hard-reloads.
+//
+// And the notice: when a newer version has been fetched and is sitting in the
+// cache, an exclamation mark appears beside the version and one tap takes it.
+// Without it the update waits for a cold launch and she has no way of knowing
+// there is one — which, for an app that gets fixed in response to something she
+// told you about, is the difference between "it's still doing it" and "oh, it's
+// there now".
 const stamp = document.getElementById("stamp");
 stamp.textContent = `v${cfg.version}`;
+
+let updateReady = false;
 let taps = 0;
 let tapTimer = null;
+
+function showUpdate() {
+  if (updateReady) return;
+  updateReady = true;
+  stamp.append(h("span", { class: "bang", text: "!" }));
+  stamp.setAttribute("aria-label", `Version ${cfg.version}. An update is ready — tap to load it.`);
+  record("update", "ready");
+}
+
+/**
+ * Take the waiting version.
+ *
+ * Ours calls skipWaiting() as it installs, so by the time the mark appears the
+ * new worker is usually already in charge and a reload is the whole story. The
+ * message is for the version that isn't: a worker cached before that line
+ * existed sits in `waiting` for ever, and a reload alone would not shift it.
+ */
+async function loadUpdate() {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration?.();
+    if (reg?.waiting) {
+      await new Promise((done) => {
+        navigator.serviceWorker.addEventListener("controllerchange", done, { once: true });
+        reg.waiting.postMessage("skip-waiting");
+        setTimeout(done, 600);                 // never hang on it
+      });
+    }
+  } catch { /* reload anyway — it is the part that matters */ }
+  location.reload();
+}
+
 stamp.addEventListener("click", async () => {
+  if (updateReady) { loadUpdate(); return; }
+
   taps++;
   clearTimeout(tapTimer);
   tapTimer = setTimeout(() => { taps = 0; }, 1200);
@@ -480,9 +524,53 @@ stamp.addEventListener("click", async () => {
 });
 
 // --- service worker --------------------------------------------------------
+//
+// The browser only checks sw.js of its own accord on a navigation and about
+// once a day, which for a home-screen app that gets launched cold is usually
+// enough. It is not enough for the app she left open, so coming back to it asks
+// as well — throttled, because it is a request she did not ask for.
+const UPDATE_CHECK_EVERY = 10 * 60 * 1000;
+
 if ("serviceWorker" in navigator && window.isSecureContext) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch((e) => record("sw", e));
+  // A controller that was already there means this page is running a version
+  // that something else has now replaced. On a first install there is none, and
+  // claiming it is not news.
+  let hadController = !!navigator.serviceWorker.controller;
+  // Optional, like every other call on this object in here: where service
+  // workers are blocked or stubbed out, `navigator.serviceWorker` can be a
+  // shape that has almost nothing on it — and this runs at the top level, so
+  // throwing would take the rest of the file's wiring with it.
+  navigator.serviceWorker.addEventListener?.("controllerchange", () => {
+    if (hadController) showUpdate();
+    hadController = true;
+  });
+
+  window.addEventListener("load", async () => {
+    try {
+      const reg = await navigator.serviceWorker.register("./sw.js");
+
+      // One left over from a previous visit, still waiting to be taken.
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdate();
+
+      reg.addEventListener("updatefound", () => {
+        const fresh = reg.installing;
+        fresh?.addEventListener("statechange", () => {
+          if (fresh.state === "installed" && navigator.serviceWorker.controller) showUpdate();
+        });
+      });
+
+      // Zero, not now: coming back to the app is a good moment to ask, and the
+      // first time she does is the most likely to be the one that matters.
+      let checkedAt = 0;
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "visible") return;
+        if (updateReady || Date.now() - checkedAt < UPDATE_CHECK_EVERY) return;
+        checkedAt = Date.now();
+        reg.update().catch(() => { /* offline, or nothing to say */ });
+      });
+    } catch (e) {
+      record("sw", e);
+    }
   });
 }
 
