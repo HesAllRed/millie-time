@@ -17,7 +17,7 @@ import { renderSort, resetSort } from "./views/sort.js";
 import { renderDeck, resetDeck } from "./views/deck.js";
 import { renderStepper, renderSent, renderFallback } from "./views/send.js";
 import { renderDebug, installLogging, record } from "./views/debug.js";
-import { loadLook, applyLook, lookLabel } from "./theme.js";
+import { loadLook, applyLook, lookLabel, holdMotion } from "./theme.js";
 import { installMenu } from "./menu.js";
 import { installConfetti } from "./confetti.js";
 
@@ -42,8 +42,27 @@ loadSession();
 // keeps reporting the full screen height and the crescent ends up hidden behind
 // the keys — which is precisely the annoyance this app exists to remove.
 // visualViewport is the only thing that tells the truth here.
+//
+// What it cannot tell us is *when*. iOS reports the new height as the keyboard
+// finishes arriving, so a crescent that waits to be told shrinks after the
+// keyboard has already landed — two movements, one then the other, which is
+// what made tapping into a caption feel slow. The focus event comes first, so
+// that is what starts the shrink; the viewport stays the authority on what the
+// height actually is.
 // ---------------------------------------------------------------------------
 let viewportBaseline = 0;
+
+/** One knob: wrapper height and tile scale move together, so the crescent
+    always fits the space left over. */
+function setCrescent(open, height) {
+  body.classList.toggle("kb-open", open);
+  document.documentElement.style.setProperty(
+    "--cres-scale", open ? "0.55" : height < 640 ? "0.78" : "1");
+  // A palette that repaints twelve times a second is competing with the
+  // keyboard for the same main thread, over a screen she is about to fill with
+  // her own words rather than watch. See theme.js.
+  holdMotion(open);
+}
 
 function syncViewport() {
   const vv = window.visualViewport;
@@ -65,12 +84,44 @@ function syncViewport() {
   body.style.top = `${offsetTop}px`;
   if (window.scrollY) window.scrollTo(0, 0);
 
-  body.classList.toggle("kb-open", open);
-
-  // One knob for the crescent: wrapper height and tile scale move together, so
-  // the photos always fit the space left over.
-  root.style.setProperty("--cres-scale", open ? "0.55" : height < 640 ? "0.78" : "1");
+  setCrescent(open, height);
 }
+
+// Tapping into a field is the earliest possible notice that the keyboard is on
+// its way. The guard timer is for when it never comes — a hardware keyboard, or
+// a desktop browser — where the viewport never moves and nothing would
+// otherwise put the crescent back.
+let kbGuard = null;
+
+/**
+ * Whether tapping a field will actually summon a keyboard.
+ *
+ * A coarse pointer is the honest test. On a desktop browser nothing moves when
+ * a field takes focus, so shrinking the crescent in anticipation and putting it
+ * back a moment later is a flinch for no reason.
+ */
+const softKeyboard = () =>
+  !!window.visualViewport && !!window.matchMedia?.("(pointer: coarse)").matches;
+
+function expectKeyboard() {
+  clearTimeout(kbGuard);
+  setCrescent(true, 0);
+  kbGuard = setTimeout(syncViewport, 700);
+}
+
+app.addEventListener("focusin", (e) => {
+  if (e.target?.classList?.contains("editor-field") && softKeyboard()) expectKeyboard();
+});
+app.addEventListener("focusout", (e) => {
+  if (!e.target?.classList?.contains("editor-field")) return;
+  if (softKeyboard()) {
+    clearTimeout(kbGuard);
+    // Not straight away: moving from one day's field to the next keeps the
+    // keyboard up, and only the viewport knows that.
+    kbGuard = setTimeout(syncViewport, 120);
+  }
+  schedulePrint(PRINT_SOON);          // she has stopped writing; catch up now
+});
 
 if (window.visualViewport) {
   visualViewport.addEventListener("resize", syncViewport);
@@ -86,14 +137,33 @@ syncViewport();
 // ---------------------------------------------------------------------------
 // The print is rendered ahead of the tap, never inside it. Anything async
 // between the tap and navigator.share() burns the user-activation window.
+//
+// But never while she is still typing, either. Drawing it is 30-50ms on a
+// laptop and several times that on a phone, all of it on the main thread — and
+// at the old 450ms it landed in every pause long enough to think, which is what
+// made the caption field feel like it was catching. Nothing needs the print
+// until the Send card, which is a swipe away, so it waits for her to stop.
 // ---------------------------------------------------------------------------
+const PRINT_AFTER  = 900;    // quiet before we even consider drawing it
+const PRINT_SOON   = 250;    // she left the field — catch up
+const PRINT_RETRY  = 700;    // how often to re-ask while she is still in there
+const PRINT_LATEST = 3000;   // ...but it is never put off longer than this
+
 let printFile = null;
 let printSig = null;
 let printTimer = null;
+let lastKeystroke = 0;
 
-function schedulePrint() {
+const stillWriting = () =>
+  !!document.activeElement?.classList?.contains("editor-field");
+
+function schedulePrint(delay = PRINT_AFTER, now = false) {
   clearTimeout(printTimer);
   printTimer = setTimeout(async () => {
+    if (!now && stillWriting() && Date.now() - lastKeystroke < PRINT_LATEST) {
+      schedulePrint(PRINT_RETRY);
+      return;
+    }
     const sig = JSON.stringify(state.captions) + state.startIso + state.endIso;
     if (sig === printSig && printFile) return;
     try {
@@ -104,9 +174,19 @@ function schedulePrint() {
       printFile = null;
       record("print", e);
     }
-  }, 450);
+  }, delay);
 }
-document.addEventListener("captions-changed", schedulePrint);
+
+document.addEventListener("captions-changed", () => {
+  lastKeystroke = Date.now();
+  schedulePrint();
+});
+
+// The Send card is where the print is actually used, and arriving at it is the
+// one moment worth interrupting anything for: it draws while she is reading the
+// card, rather than while she is typing into the one before it. The deck says
+// so on arrival — see fillSend().
+document.addEventListener("print-wanted", () => schedulePrint(PRINT_SOON, true));
 
 // --- picking ---------------------------------------------------------------
 

@@ -60,20 +60,24 @@ function dayCard(iso, onShare) {
     "aria-label": `Caption for ${label.weekday}`,
   });
   ta.value = state.captions[iso] || "";
+
+  // Built before the handler so the counter can be held rather than looked up:
+  // this runs on every single keystroke.
+  const tally = h("b", { text: String(ta.value.length) });
+
   ta.addEventListener("input", () => {
     state.captions[iso] = ta.value;
     saveSession();
-    const count = card.querySelector(".count b");
-    if (count) count.textContent = String(ta.value.length);
+    tally.textContent = String(ta.value.length);
     // Typing deliberately does not re-render the deck — it would blow away the
     // caret. The print listens for this instead so it can regenerate ahead of
-    // the share tap.
+    // the share tap, once she has stopped.
     document.dispatchEvent(new Event("captions-changed"));
   });
 
   card.append(h("div", { class: "editor" },
     ta,
-    h("div", { class: "count" }, h("b", { text: String(ta.value.length) }), " chars")
+    h("div", { class: "count" }, tally, " chars")
   ));
 
   card.append(h("p", { class: "swipe", text: "Swipe →" }));
@@ -95,6 +99,12 @@ function sendCard(onShare) {
  */
 function fillSend(card, onShare) {
   clear(card);
+
+  // Reaching this card is the cue to draw the print, if the week has moved on
+  // since the last one. It is deliberately not drawn while she is still typing
+  // on the cards before it — main.js owns that rule.
+  document.dispatchEvent(new Event("print-wanted"));
+
   const window = days();
   const withText = window.filter((iso) => (state.captions[iso] || "").trim());
   const bytes = totalBytes(state.items);

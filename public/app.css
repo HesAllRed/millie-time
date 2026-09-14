@@ -241,11 +241,12 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .cres-wrap{
   flex: 0 0 auto; height: calc(238px * var(--cres-scale));
   display: flex; align-items: center; justify-content: center;
-  transition: height .2s ease;
+  transition: height .16s cubic-bezier(.32,.72,0,1);
 }
 .cres{
   display: flex; align-items: center; justify-content: center;
-  transform-origin: center center; transition: transform .2s ease;
+  transform-origin: center center;
+  transition: transform .16s cubic-bezier(.32,.72,0,1);
   transform: scale(var(--cres-scale));
 }
 .more{
@@ -256,7 +257,10 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 }
 
 /* When the keyboard is up the crescent shrinks and rises instead of hiding
-   behind it. Scaling the wrapper avoids re-rendering and losing the caret. */
+   behind it. Scaling the wrapper avoids re-rendering and losing the caret.
+
+   Quick, and started by the focus rather than by the viewport (see main.js), so
+   it runs underneath the keyboard's own slide instead of after it. */
 .kb-open .dayline{ margin-top: 4px; }
 .kb-open .dayline b{ font-size: 18px; }
 .kb-open .swipe{ display: none; }
