@@ -79,9 +79,4 @@ export function renderIntake(root, { onPick }) {
   } else {
     root.append(h("button", { class: "btn", type: "button", text: "Pick photos", onclick: onPick }));
   }
-
-  // The one thing about this app that isn't discoverable: the picker appends
-  // rather than replaces, so a fast first pass costs her nothing.
-  root.append(h("p", { class: "helper",
-    text: "Newest are at the top of your roll. You can come back and add more." }));
 }

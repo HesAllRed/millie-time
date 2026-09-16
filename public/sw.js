@@ -68,6 +68,14 @@ self.addEventListener("activate", (event) => {
   })());
 });
 
+// The version stamp's "!" asks for this when the page finds a worker waiting.
+// Ours skips waiting as it installs, so this is only ever reached by a worker
+// that was cached before that was true — but a page that cannot take the update
+// it is advertising is worse than no advertisement.
+self.addEventListener("message", (event) => {
+  if (event.data === "skip-waiting") self.skipWaiting();
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;

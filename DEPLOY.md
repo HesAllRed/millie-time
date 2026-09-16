@@ -101,8 +101,13 @@ Live in about thirty seconds. Two things to remember:
   on any release. The service worker serves cached files; without the bump the old
   ones stay put.
 - It applies on her **next cold launch**. iOS kills backgrounded PWAs freely, so
-  that's usually the same day. To force it: three taps on the version stamp in the
-  footer clears every cache and hard-reloads.
+  that's usually the same day.
+- If the app is open when one lands, she'll see an **exclamation mark next to the
+  version** in the footer once the new files are cached — one tap takes it. The
+  app asks whether there is one each time she comes back to it, at most every ten
+  minutes.
+- To force the issue: three taps on the version stamp clears every cache and
+  hard-reloads.
 
 ### ⚠️ Changing the icon is different
 

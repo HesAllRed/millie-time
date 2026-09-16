@@ -305,6 +305,10 @@ const reduceMotion = () =>
 const STEP_MS = 80;
 let motion = null;      // the live rAF handle
 let motionAt = 0;
+let phase = 0;          // where in the cycle it is, kept across a hold
+let held = false;
+
+const clock = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 function stopMotion() {
   if (motion && typeof cancelAnimationFrame === "function") cancelAnimationFrame(motion);
@@ -313,24 +317,48 @@ function stopMotion() {
 
 function startMotion(scheme) {
   stopMotion();
-  if (!scheme.frame || reduceMotion()) return;         // the still frame is already painted
+  if (!scheme.frame || held || reduceMotion()) return;  // the still frame is already painted
   if (typeof requestAnimationFrame !== "function") return;
 
-  const started = typeof performance !== "undefined" ? performance.now() : Date.now();
+  const base = phase;                                   // carry on from where it stopped
+  const started = clock();
   motionAt = 0;
   const step = (now) => {
     if (now - motionAt >= STEP_MS) {
       motionAt = now;
-      paintVars(scheme.frame(((now - started) / 1000 / scheme.cycle) % 1));
+      phase = (base + (now - started) / 1000 / scheme.cycle) % 1;
+      paintVars(scheme.frame(phase));
     }
     motion = requestAnimationFrame(step);
   };
   motion = requestAnimationFrame(step);
 }
 
+/**
+ * Stop and restart the moving schemes without losing their place.
+ *
+ * Called when the keyboard opens: a palette stepping twelve times a second is
+ * competing for the main thread with the one thing she is actually doing, over
+ * a screen she is looking at to read her own words. Picking the cycle up where
+ * it left off is what keeps that invisible — restarting it would jump the whole
+ * app to a different colour the moment she put the keyboard away.
+ */
+export function holdMotion(hold) {
+  if (!!hold === held) return;
+  held = !!hold;
+  if (held) stopMotion();
+  else startMotion(currentScheme());
+}
+
+let lastPainted = null;
+
 /** Apply the whole look: the palette, the motion, the status-bar tint. */
 export function applyLook() {
   const scheme = currentScheme();
+  // A different scheme starts its cycle at the beginning; the same one carries
+  // on, so that a repaint mid-cycle is not a jump.
+  if (scheme.id !== lastPainted) { phase = 0; lastPainted = scheme.id; }
+
   paintVars(scheme.vars);
   startMotion(scheme);
 

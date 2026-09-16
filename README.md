@@ -23,6 +23,10 @@ warning — there is no hue and no setting of them that makes the app unreadable
 and there is a test that sweeps the wheel to prove it. The moving two are
 sampled a dozen times a second, and hold still under Reduce Motion.
 
+The version in the footer grows an exclamation mark when a newer one has been
+fetched and is waiting in the cache; one tap takes it. Three taps, as ever,
+clears every cache and hard-reloads.
+
 ```bash
 npm test
 ```
@@ -56,7 +60,7 @@ public/                    ← everything Cloudflare serves
     probe.js               the on-device order test
     ui.js  menu.js  confetti.js
     views/                 intake · sort · deck · send · debug
-test/                      node:test, including the end-to-end share order
+test/                      node:test, the end-to-end share order, and the update mark
 tools/                     dev server, icon generator
   harness/                 drives Chromium over CDP, no dependencies
 ```
