@@ -60,7 +60,8 @@ public/                    ← everything Cloudflare serves
     probe.js               the on-device order test
     ui.js  menu.js  confetti.js
     views/                 intake · sort · deck · send · debug
-test/                      node:test, the end-to-end share order, and the update mark
+test/                      node:test, the end-to-end share order, the keyboard
+                           choreography, and the update mark
 tools/                     dev server, icon generator
   harness/                 drives Chromium over CDP, no dependencies
 ```

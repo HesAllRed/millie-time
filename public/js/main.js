@@ -43,21 +43,72 @@ loadSession();
 // the keys — which is precisely the annoyance this app exists to remove.
 // visualViewport is the only thing that tells the truth here.
 //
-// What it cannot tell us is *when*. iOS reports the new height as the keyboard
-// finishes arriving, so a crescent that waits to be told shrinks after the
-// keyboard has already landed — two movements, one then the other, which is
-// what made tapping into a caption feel slow. The focus event comes first, so
-// that is what starts the shrink; the viewport stays the authority on what the
-// height actually is.
+// Its arrival, though, is a stampede. iOS does three things at once: slides the
+// keyboard up, shrinks the visual viewport, and — if the caret would end up
+// behind the keys — scrolls the visual viewport down to lift the field clear.
+// Each of those fires events, and answering every one of them with a layout
+// write is what made the card judder: the shell chased the scroll down the
+// screen, got yanked back by scrollTo, and re-laid out on every step in
+// between. On a recording it reads as the whole app dropping to the bottom of
+// the screen and bouncing back.
+//
+// So: one write, on focus, straight to where it is going to end up, and then
+// nothing at all until it has settled. Doing it that early is also what stops
+// iOS scrolling in the first place — by the time it works out where the caret
+// is, the field is already sitting above where the keyboard is going to be, so
+// there is nothing to lift clear of.
+//
+// The height is not a guess. It is the keyboard's own height, measured the last
+// time it was up and kept, so the very first tap on a device is the only one
+// that has to be told.
 // ---------------------------------------------------------------------------
-let viewportBaseline = 0;
+const KB_KEY = "millie.keyboard.v1";
+const SETTLE_MS = 400;            // iOS takes ~250ms; this covers the tail
 
-/** One knob: wrapper height and tile scale move together, so the crescent
-    always fits the space left over. */
-function setCrescent(open, height) {
+// What to assume the first time, before this device has ever shown us its
+// keyboard. Measured off the recording that started all this: 395 of 874 points,
+// counting the accessory bar, which is 45%. Erring large on purpose — guess
+// over and the app makes a little too much room, which the keyboard covers on
+// its way up and one quiet correction fixes; guess under and the field is still
+// low enough for iOS to haul the whole screen up to reach it, which is the
+// thing being fixed here.
+const KEYBOARD_GUESS = 0.45;
+
+let viewportBaseline = 0;
+let keyboardHeight = 0;           // what it cost last time, on this device
+let settling = false;
+let settleTimer = null;
+
+try { keyboardHeight = Number(localStorage.getItem(KB_KEY)) || 0; } catch { /* fine */ }
+
+function rememberKeyboard(px) {
+  // A few pixels either way is the same keyboard — an emoji panel or a
+  // different language is not, and this is how it learns about those.
+  if (!Number.isFinite(px) || px <= 0 || Math.abs(px - keyboardHeight) < 8) return;
+  keyboardHeight = px;
+  try { localStorage.setItem(KB_KEY, String(px)); } catch { /* survivable */ }
+}
+
+/**
+ * The shell's whole geometry, in one write.
+ *
+ * Every caller sets all of it at once on purpose: the judder was three of these
+ * fighting each other a frame apart.
+ */
+function applyShell(height, offsetTop, open) {
+  const root = document.documentElement;
+  root.style.setProperty("--vvh", `${height}px`);
+
+  // Follow the visual viewport down the page. Without this the shell stays
+  // pinned to the layout viewport and the top of the screen disappears
+  // upward as soon as the keyboard opens.
+  body.style.top = `${offsetTop}px`;
   body.classList.toggle("kb-open", open);
-  document.documentElement.style.setProperty(
-    "--cres-scale", open ? "0.55" : height < 640 ? "0.78" : "1");
+
+  // One knob for the crescent: wrapper height and tile scale move together, so
+  // the photos always fit the space left over.
+  root.style.setProperty("--cres-scale", open ? "0.55" : height < 640 ? "0.78" : "1");
+
   // A palette that repaints twelve times a second is competing with the
   // keyboard for the same main thread, over a screen she is about to fill with
   // her own words rather than watch. See theme.js.
@@ -65,6 +116,10 @@ function setCrescent(open, height) {
 }
 
 function syncViewport() {
+  // Mid-move, the viewport is describing a journey rather than a destination.
+  // We already know where it lands, so let it talk.
+  if (settling) return;
+
   const vv = window.visualViewport;
   const height = Math.round(vv ? vv.height : window.innerHeight);
   const offsetTop = Math.round(vv ? vv.offsetTop : 0);
@@ -74,52 +129,55 @@ function syncViewport() {
   viewportBaseline = Math.max(viewportBaseline, height);
   const keyboard = Math.max(0, viewportBaseline - height);
   const open = keyboard > 120;
+  if (open) rememberKeyboard(keyboard);
 
-  const root = document.documentElement;
-  root.style.setProperty("--vvh", `${height}px`);
-
-  // Follow the visual viewport down the page. Without this the shell stays
-  // pinned to the layout viewport and the top of the screen disappears
-  // upward as soon as the keyboard opens.
-  body.style.top = `${offsetTop}px`;
   if (window.scrollY) window.scrollTo(0, 0);
-
-  setCrescent(open, height);
+  applyShell(height, offsetTop, open);
 }
 
-// Tapping into a field is the earliest possible notice that the keyboard is on
-// its way. The guard timer is for when it never comes — a hardware keyboard, or
-// a desktop browser — where the viewport never moves and nothing would
-// otherwise put the crescent back.
-let kbGuard = null;
+/** Hold still for the length of the keyboard's move, then check the landing. */
+function settle() {
+  settling = true;
+  clearTimeout(settleTimer);
+  settleTimer = setTimeout(() => { settling = false; syncViewport(); }, SETTLE_MS);
+}
 
 /**
  * Whether tapping a field will actually summon a keyboard.
  *
  * A coarse pointer is the honest test. On a desktop browser nothing moves when
- * a field takes focus, so shrinking the crescent in anticipation and putting it
+ * a field takes focus, so rearranging the shell in anticipation and putting it
  * back a moment later is a flinch for no reason.
  */
 const softKeyboard = () =>
   !!window.visualViewport && !!window.matchMedia?.("(pointer: coarse)").matches;
 
+/** It is coming, and we know roughly how much room it takes. Make it now. */
 function expectKeyboard() {
-  clearTimeout(kbGuard);
-  setCrescent(true, 0);
-  kbGuard = setTimeout(syncViewport, 700);
+  if (!viewportBaseline) return;
+  const room = keyboardHeight || Math.round(viewportBaseline * KEYBOARD_GUESS);
+  applyShell(viewportBaseline - room, 0, true);
+  settle();
 }
 
+/** And it is going. Take the room back while it slides away. */
+function expectNoKeyboard() {
+  if (!viewportBaseline) return;
+  applyShell(viewportBaseline, 0, false);
+  settle();
+}
+
+const isField = (el) => !!el?.classList?.contains("editor-field");
+
 app.addEventListener("focusin", (e) => {
-  if (e.target?.classList?.contains("editor-field") && softKeyboard()) expectKeyboard();
+  if (isField(e.target) && softKeyboard()) expectKeyboard();
 });
+
 app.addEventListener("focusout", (e) => {
-  if (!e.target?.classList?.contains("editor-field")) return;
-  if (softKeyboard()) {
-    clearTimeout(kbGuard);
-    // Not straight away: moving from one day's field to the next keeps the
-    // keyboard up, and only the viewport knows that.
-    kbGuard = setTimeout(syncViewport, 120);
-  }
+  if (!isField(e.target)) return;
+  // Moving from one day's field to the next keeps the keyboard exactly where it
+  // is, so that is not a departure.
+  if (softKeyboard() && !isField(e.relatedTarget)) expectNoKeyboard();
   schedulePrint(PRINT_SOON);          // she has stopped writing; catch up now
 });
 
