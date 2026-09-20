@@ -586,18 +586,23 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .swatch.on{ border-color: var(--bone); box-shadow: 3px 3px 0 var(--accent); }
 .swatch:active{ transform: translate(1px,1px); }
 
-/* Three bars of the scheme it is offering, over that scheme's own ground —
-   painted from theme.js's values, never from the variables in play. */
-.swatch i{ position: absolute; left: 0; right: 0; height: 33.34%; display: block; }
+/* A miniature of the screen the scheme makes, painted from theme.js's values
+   and never from the variables in play: the weekday over the date, the way the
+   entry screen stacks them, and the button. What the eye is being asked about
+   is the accent against the ground — see swatch() in menu.js. */
+.swatch i{ position: absolute; display: block; border-radius: 1px; }
+.s-wd { left: 7px; top: 11px; width: 19px; height: 4px; }
+.s-dm { left: 7px; top: 19px; width: 27px; height: 4px; opacity: .85; }
+.s-btn{ left: 6px; right: 6px; bottom: 6px; height: 11px; border: 1.5px solid; border-radius: 1px; }
 
-/* A moving scheme gets the wheel it turns rather than three bars of one frame,
-   which would look like a scheme that doesn't move. */
-.swatch .wheel{
-  position: absolute; inset: -30%; height: auto; border-radius: 50%;
-  /* The gradient itself is set inline, from the scheme's own frames. */
-  animation: wheel-turn 5.5s linear infinite;
+/* A moving scheme paints those in the run of colours it passes through and
+   walks the run, so it reads as the one that changes without pretending the
+   whole screen is a rainbow at any one moment. */
+.swatch.moving .s-wd, .swatch.moving .s-btn{
+  background-size: 200% 100%;
+  animation: swatch-turn 6s linear infinite;
 }
-@keyframes wheel-turn{ to{ transform: rotate(1turn); } }
+@keyframes swatch-turn{ to{ background-position: 200% 0; } }
 
 /* --- her own colour ------------------------------------------------------
    Two sliders whose tracks are the thing they choose from: the hue one is the
@@ -650,7 +655,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
   .slider:active::-webkit-slider-thumb{ transform: none; }
   /* Still, but still every colour at once — it has to stay legible as the
      choice that moves, since theme.js holds it on one frame here too. */
-  .swatch .wheel{ animation: none; }
+  .swatch.moving .s-wd, .swatch.moving .s-btn{ animation: none; }
 }
 
 /* --- utilities -----------------------------------------------------------
