@@ -401,6 +401,17 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .print .p-d{ font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: .1em; color: #5F52A8; padding-top: 3px; flex: 0 0 28px; }
 .print .p-c{ font-family: var(--hand); font-size: 12.5px; line-height: 1.35; }
 
+/* --- the archive ---------------------------------------------------------
+   The same paper the print is on, stacked. These are the week's words kept, so
+   they are shown on the thing the week's words go out on.
+   -------------------------------------------------------------------------- */
+.arc-week{ margin: 16px 0 22px; }
+.arc-week .print{ box-shadow: 5px 5px 0 rgba(0,0,0,.5); }
+.arc-week .p-h{ color: #5F52A8; }
+.arc-week .sheet-x{ margin-top: 8px; font-size: 9.5px; opacity: .75; }
+#app[data-view="archive"] .scroll{ margin-top: 2px; }
+#app[data-view="archive"] .btn{ margin-top: 6px; }
+
 .tally{ display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--bone-dim); margin-top: 12px; }
 .tally b{ color: var(--bone); font-weight: 500; }
 .stray{

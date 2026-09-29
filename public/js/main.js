@@ -16,10 +16,12 @@ import { renderIntake } from "./views/intake.js";
 import { renderSort, resetSort } from "./views/sort.js";
 import { renderDeck, resetDeck } from "./views/deck.js";
 import { renderStepper, renderSent, renderFallback } from "./views/send.js";
+import { renderArchive } from "./views/archive.js";
 import { renderDebug, installLogging, record } from "./views/debug.js";
 import { loadLook, applyLook, lookLabel, holdMotion } from "./theme.js";
 import { installMenu } from "./menu.js";
 import { installConfetti } from "./confetti.js";
+import { keepWeek } from "./archive.js";
 
 const app = document.getElementById("app");
 const body = document.getElementById("body");
@@ -367,7 +369,14 @@ function payload() {
 // app to send it again. She leaves via "Finished" instead.
 function handleOutcome(res) {
   record("share", JSON.stringify(res.outcome ? { outcome: res.outcome, rung: res.rung } : res));
-  if (res.outcome === "sent") { set({ view: "deck", sharedOnce: true, shareStep: null }); return; }
+  if (res.outcome === "sent") {
+    // Sent is the moment a week becomes a week that happened. Keeping it is
+    // keyed on the span, so sending twice updates one entry rather than
+    // leaving two.
+    keepWeek({ startIso: state.startIso, endIso: state.endIso, captions: state.captions });
+    set({ view: "deck", sharedOnce: true, shareStep: null });
+    return;
+  }
   if (res.outcome === "cancelled") return;
   if (res.outcome === "stepper") { set({ view: "send", shareStep: "words" }); return; }
   set({ view: "fallback" });
@@ -433,6 +442,7 @@ function paint() {
     case "send":     renderStepper(app, { onWords: doShareWords, onPhotos: doSharePhotos }); break;
     case "sent":     renderSent(app, { onNew: () => { stopVideo(); clearAll(); printFile = null; printSig = null; resetSort(); resetDeck(); set({ view: "intake" }); } }); break;
     case "fallback": renderFallback(app, { onRetry: () => set({ view: "deck" }) }); break;
+    case "archive":  renderArchive(app, { onBack: () => set({ view: state.cameFrom || "intake" }) }); break;
     default:         renderIntake(app, { onPick: openPicker });
   }
 }

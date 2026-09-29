@@ -13,6 +13,8 @@ import {
   customScheme, spectrum, hslOf, CUSTOM,
 } from "./theme.js";
 import { spray } from "./confetti.js";
+import { state } from "./state.js";
+import { openArchive } from "./views/archive.js";
 
 const OUT_MS = 170;
 
@@ -39,6 +41,13 @@ function rootPanel() {
       type: "button", class: "menu-item",
       onclick: () => { panel = "options"; fill(); },
     }, h("span", { text: "options" }), h("span", { class: "cue", text: "→" })),
+
+    h("button", {
+      type: "button", class: "menu-item",
+      // A screen of its own rather than a panel in here: it is a list of weeks,
+      // and weeks are the size of a page.
+      onclick: () => { const from = state.view; closeMenu(); openArchive(from); },
+    }, h("span", { text: "archive" }), h("span", { class: "cue", text: "→" })),
 
     h("button", {
       type: "button", class: "menu-item",

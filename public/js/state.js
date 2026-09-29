@@ -4,6 +4,7 @@
 import cfg from "./config.js";
 import { rangeBetween, addDays, resolveWindow } from "./dates.js";
 import { activeDays } from "./compose.js";
+import { keepWeek } from "./archive.js";
 
 const SESSION_KEY = "millie.session.v2";
 const LEGACY_CAPTIONS_KEY = "millie.captions.v1";
@@ -16,7 +17,8 @@ const opening = resolveWindow({
 });
 
 export const state = {
-  view: "intake",          // intake | sort | deck | send | sent | fallback | debug
+  view: "intake",          // intake | sort | deck | send | sent | fallback | archive
+  cameFrom: null,          // where the archive was opened from, so Back means back
   items: [],               // { id, file, kind, url, takenAt, day, poster }
   captions: {},            // ISO day -> text
   startIso: opening.startIso,
@@ -117,7 +119,12 @@ export function loadSession() {
 
   const ageHours = (Date.now() - (raw.savedAt || 0)) / 3600000;
   if (!(ageHours >= 0 && ageHours <= cfg.resumeWithinHours)) {
-    // A week left for days is a finished week, not one to resume into.
+    // A week left for days is a finished week, not one to resume into — but
+    // finished is not the same as unwanted. This used to delete the captions
+    // outright, which meant writing on Sunday and next opening the app on
+    // Wednesday lost every word of it, silently. Now it keeps them.
+    keepWeek({ startIso: raw.startIso, endIso: raw.endIso, captions: raw.captions,
+               savedAt: raw.savedAt });
     try { localStorage.removeItem(SESSION_KEY); } catch {}
     return;
   }
@@ -166,6 +173,10 @@ export function writeSession() {
 }
 
 export function clearAll() {
+  // Starting the next one is the clearest statement there is that this one is
+  // over, so this is where it is kept.
+  keepWeek({ startIso: state.startIso, endIso: state.endIso, captions: state.captions });
+
   for (const item of state.items) {
     if (item.url) URL.revokeObjectURL(item.url);
     if (item.poster && item.poster !== item.url) URL.revokeObjectURL(item.poster);
@@ -176,6 +187,7 @@ export function clearAll() {
   state.playingId = null;
   state.shareStep = null;
   state.sharedOnce = false;
+  state.cameFrom = null;
   state.autoWindow = cfg.weekEndsOn === "newestPhoto";
 
   const fresh = resolveWindow({ weekLength: cfg.weekLength, maxDays: cfg.maxWindowDays });
