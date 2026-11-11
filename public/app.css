@@ -401,6 +401,37 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .print .p-d{ font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: .1em; color: #5F52A8; padding-top: 3px; flex: 0 0 28px; }
 .print .p-c{ font-family: var(--hand); font-size: 12.5px; line-height: 1.35; }
 
+/* The Send card's controls: whether a print goes, and which one. The chips
+   scroll sideways rather than wrapping, so six of them cost one line of the
+   card and the preview keeps its room. */
+.print-head{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.switch{
+  position: relative; flex: 0 0 auto; width: 48px; height: 28px; padding: 0;
+  border: 2px solid var(--edge); border-radius: 999px; background: var(--ground);
+  transition: background-color .16s, border-color .16s;
+}
+.switch-knob{
+  position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--bone-dim); transition: transform .16s, background-color .16s;
+}
+.switch.on{ background: var(--magenta); border-color: var(--magenta); }
+.switch.on .switch-knob{ transform: translateX(20px); background: var(--ink); }
+.print-styles{
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+  margin: 10px calc(var(--pad-x) * -1) 0; padding: 0 var(--pad-x) 2px;
+}
+.print-styles::-webkit-scrollbar{ display: none; }
+.print-styles .chip{ flex: 0 0 auto; font-size: 12px; padding: 7px 10px; }
+.print-img{
+  display: block; width: 100%; height: auto; border: 3px solid var(--bone); border-radius: 2px;
+  box-shadow: 7px 7px 0 rgba(0,0,0,.5); transition: opacity .16s;
+}
+.print-scroll.drawing .print-img{ opacity: .5; }
+.print-off{
+  margin: 18px 4px 0; font-family: var(--hand); font-size: 17px; line-height: 1.45;
+  color: var(--bone-dim); text-align: center;
+}
+
 /* --- the archive ---------------------------------------------------------
    The same paper the print is on, stacked. These are the week's words kept, so
    they are shown on the thing the week's words go out on.
@@ -477,6 +508,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
   .orb.pulse{ animation: none; opacity: .9; }
   .orb span{ animation: none; }
   .cres, .cres-wrap, .dots .dot{ transition: none; }
+  .switch, .switch-knob, .print-img{ transition: none; }
   ::view-transition-old(root), ::view-transition-new(root){ animation: none; }
   :root.nav-fwd::view-transition-old(root), :root.nav-fwd::view-transition-new(root),
   :root.nav-back::view-transition-old(root), :root.nav-back::view-transition-new(root){ animation: none; }

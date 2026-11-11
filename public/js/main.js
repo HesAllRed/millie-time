@@ -10,7 +10,7 @@ import {
 import { composeText, shareOrder, captureSequence, weightPlan } from "./compose.js";
 import { ingest, assignDays, stopVideo, prepareForShare } from "./media.js";
 import { shrinkAll } from "./resize.js";
-import { renderPrint } from "./print.js";
+import { renderPrint, printPrefs } from "./print.js";
 import { copyText, runShareLadder, shareWords, sharePhotos } from "./share.js";
 import { renderIntake } from "./views/intake.js";
 import { renderSort, resetSort } from "./views/sort.js";
@@ -217,6 +217,26 @@ let lastKeystroke = 0;
 const stillWriting = () =>
   !!document.activeElement?.classList?.contains("editor-field");
 
+let printGen = 0;
+
+// What the print would be drawn from, as a string. The photos only count for
+// the styles that show them, so adding a photo does not redraw a words print.
+function printSignature() {
+  const { style } = printPrefs();
+  const photos = style === "words" ? ""
+    : state.items.map((i) => `${i.id}@${i.day || ""}`).join(",");
+  return [JSON.stringify(state.captions), state.startIso, state.endIso, style, photos].join("|");
+}
+
+// The Send card shows the real print, so it is told every time there is one —
+// including when it is unchanged, so a card that has just been rebuilt can
+// pick it straight back up.
+function announcePrint() {
+  document.dispatchEvent(new CustomEvent("print-ready", {
+    detail: { file: printPrefs().on ? printFile : null, style: printPrefs().style },
+  }));
+}
+
 function schedulePrint(delay = PRINT_AFTER, now = false) {
   clearTimeout(printTimer);
   printTimer = setTimeout(async () => {
@@ -224,16 +244,32 @@ function schedulePrint(delay = PRINT_AFTER, now = false) {
       schedulePrint(PRINT_RETRY);
       return;
     }
-    const sig = JSON.stringify(state.captions) + state.startIso + state.endIso;
-    if (sig === printSig && printFile) return;
+    // Every request supersedes any render still in flight — another style
+    // tapped while this one was decoding, or a tap back to the one already
+    // drawn — and that older result must not land on top.
+    const gen = ++printGen;
+
+    // Left out of the share: nothing to draw. What was drawn is kept, so
+    // turning it back on is instant if nothing else has changed.
+    if (!printPrefs().on) { announcePrint(); return; }
+
+    const sig = printSignature();
+    if (sig === printSig) { announcePrint(); return; }
+
     try {
-      printFile = await renderPrint(days(), state.captions, cfg);
+      const file = await renderPrint(days(), state.captions, cfg,
+        { style: printPrefs().style, items: state.items });
+      if (gen !== printGen) return;
+      printFile = file;
       printSig = sig;
-      record("print", printFile ? `${printFile.size} bytes` : "empty");
+      record("print", printFile ? `${printPrefs().style} · ${printFile.size} bytes` : "empty");
     } catch (e) {
+      if (gen !== printGen) return;
       printFile = null;
+      printSig = null;
       record("print", e);
     }
+    announcePrint();
   }, delay);
 }
 
@@ -247,6 +283,10 @@ document.addEventListener("captions-changed", () => {
 // card, rather than while she is typing into the one before it. The deck says
 // so on arrival — see fillSend().
 document.addEventListener("print-wanted", () => schedulePrint(PRINT_SOON, true));
+
+// A style tapped, or the print switched on or off, on the Send card. She is
+// looking straight at the preview, so there is no reason to wait at all.
+document.addEventListener("print-prefs-changed", () => schedulePrint(0, true));
 
 // --- picking ---------------------------------------------------------------
 
@@ -326,7 +366,11 @@ function payload() {
     captureDate: (item.share || item.container) && !(item.share ? item.takenAt : item.hasExifDate)
       ? stamps[i] : null,
   }));
-  if (printFile) entries.unshift({ file: printFile, name: printFile.name, time: Date.now() });
+  // Unless she has left it out. Whatever is drawn is what the Send card is
+  // showing, so a tap that lands mid-redraw sends the print she was looking at.
+  if (printPrefs().on && printFile) {
+    entries.unshift({ file: printFile, name: printFile.name, time: Date.now() });
+  }
 
   // Messages lands attachments as their uploads finish, so weight is the only
   // ordering signal it acts on. See compose.js.
@@ -387,7 +431,15 @@ function handleOutcome(res) {
 function doShare() {
   const { text, files } = payload();
   copyText(text);
-  if (!files.length) { set({ view: "fallback" }); return; }
+  if (!files.length) {
+    // Words and no photos, with the print left out: the words are the share.
+    if (text.trim()) {
+      shareWords(text).then(handleOutcome);
+      return;
+    }
+    set({ view: "fallback" });
+    return;
+  }
   stopVideo();
   runShareLadder({ text, files }).then(handleOutcome).catch((e) => {
     record("share", e);
@@ -440,7 +492,7 @@ function paint() {
     case "sort":     renderSort(app, { onDone: () => { resetDeck(); set({ view: "deck", deckIndex: 0 }); schedulePrint(); }, onAddMore: openPicker }); break;
     case "deck":     renderDeck(app, { onShare: doShare }); break;
     case "send":     renderStepper(app, { onWords: doShareWords, onPhotos: doSharePhotos }); break;
-    case "sent":     renderSent(app, { onNew: () => { stopVideo(); clearAll(); printFile = null; printSig = null; resetSort(); resetDeck(); set({ view: "intake" }); } }); break;
+    case "sent":     renderSent(app, { onNew: () => { stopVideo(); clearAll(); printFile = null; printSig = null; announcePrint(); resetSort(); resetDeck(); set({ view: "intake" }); } }); break;
     case "fallback": renderFallback(app, { onRetry: () => set({ view: "deck" }) }); break;
     case "archive":  renderArchive(app, { onBack: () => set({ view: state.cameFrom || "intake" }) }); break;
     default:         renderIntake(app, { onPick: openPicker });

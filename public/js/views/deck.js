@@ -8,11 +8,73 @@ import { state, set, days, deckDays, saveSession, unsortedCount } from "../state
 import { dayLabel, rangeLabel } from "../dates.js";
 import { totalBytes, formatBytes, itemsForDay } from "../compose.js";
 import { playVideo, stopVideo } from "../media.js";
+import { PRINT_STYLES, printPrefs, setPrintPrefs } from "../print.js";
 
 let gridDay = null;      // ISO day whose full grid is open, or null
 let gridPick = null;     // item id selected inside that grid
 
 export function resetDeck() { gridDay = null; gridPick = null; }
+
+// ---------------------------------------------------------------------------
+// The print preview.
+//
+// The Send card shows the print itself — the actual file that will go first in
+// the share — rather than an HTML imitation of it, because with six styles the
+// imitation would be six more layouts to keep in step with print.js. main.js
+// announces every finished print; the card holds the latest and paints it
+// wherever the preview currently is.
+// ---------------------------------------------------------------------------
+
+let printShown = null;   // { file, url } — the File and its object URL
+let previewBox = null;   // the element the preview is painted into, if mounted
+
+function showPrint(file) {
+  if (printShown?.file === file) return;
+  if (printShown?.url) URL.revokeObjectURL(printShown.url);
+  printShown = file ? { file, url: URL.createObjectURL(file) } : null;
+}
+
+document.addEventListener("print-ready", (e) => {
+  showPrint(e.detail?.file || null);
+  if (previewBox?.isConnected) paintPreview(previewBox);
+});
+
+/** The HTML paper, for the moment before the first print has been drawn. */
+function paperStandIn() {
+  const week = days();
+  const withText = week.filter((iso) => (state.captions[iso] || "").trim());
+  const paper = h("div", { class: "print" },
+    h("div", { class: "p-h" },
+      h("span", { text: rangeLabel(week) }),
+      h("span", { text: cfg.name })),
+    h("div", { class: "p-t", text: cfg.printTitle })
+  );
+  if (withText.length) {
+    for (const iso of withText) {
+      paper.append(h("div", { class: "p-row" },
+        h("span", { class: "p-d", text: dayLabel(iso).wd }),
+        h("span", { class: "p-c", text: state.captions[iso].trim() })
+      ));
+    }
+  } else {
+    paper.append(h("div", { class: "p-row" },
+      h("span", { class: "p-c", text: "nothing written yet — swipe back and add a line or two." })));
+  }
+  return paper;
+}
+
+function paintPreview(box) {
+  clear(box);
+  box.classList.remove("drawing");
+  if (!printPrefs().on) {
+    box.append(h("p", { class: "print-off", text:
+      "No print this time. Just your photos, with your words as the message." }));
+    return;
+  }
+  box.append(printShown
+    ? h("img", { class: "print-img", src: printShown.url, alt: "Your print" })
+    : paperStandIn());
+}
 
 // Kept in one place because the scroll handler rewrites these on every swipe,
 // and it used to do it by clobbering className outright — which would now strip
@@ -97,40 +159,52 @@ function sendCard(onShare) {
  * so this card would otherwise still be showing whatever the captions were when
  * she entered the deck. It gets refreshed on arrival instead.
  */
-function fillSend(card, onShare) {
+function fillSend(card, onShare, announce = true) {
   clear(card);
 
   // Reaching this card is the cue to draw the print, if the week has moved on
   // since the last one. It is deliberately not drawn while she is still typing
-  // on the cards before it — main.js owns that rule.
-  document.dispatchEvent(new Event("print-wanted"));
+  // on the cards before it — main.js owns that rule. A refill from a tap on
+  // this card's own controls has already said what changed, more urgently.
+  if (announce) document.dispatchEvent(new Event("print-wanted"));
 
-  const window = days();
-  const withText = window.filter((iso) => (state.captions[iso] || "").trim());
   const bytes = totalBytes(state.items);
   const photos = state.items.filter((i) => i.kind === "photo").length;
   const videos = state.items.filter((i) => i.kind === "video").length;
+  const { on, style } = printPrefs();
 
-  card.append(h("p", { class: "brandline centred", text: "Your print" }));
+  // Whether to send a print at all — a switch rather than a style, because
+  // "no print" is a different share, not a different look.
+  card.append(h("div", { class: "print-head" },
+    h("p", { class: "brandline", text: "Your print" }),
+    h("button", {
+      type: "button", class: `switch${on ? " on" : ""}`, role: "switch",
+      "aria-checked": String(on), "aria-label": "Include the print",
+      onclick: () => { setPrintPrefs({ on: !on }); fillSend(card, onShare, false); },
+    }, h("span", { class: "switch-knob" }))
+  ));
 
-  const paper = h("div", { class: "print" },
-    h("div", { class: "p-h" },
-      h("span", { text: rangeLabel(window) }),
-      h("span", { text: cfg.name })),
-    h("div", { class: "p-t", text: cfg.printTitle })
-  );
-  if (withText.length) {
-    for (const iso of withText) {
-      paper.append(h("div", { class: "p-row" },
-        h("span", { class: "p-d", text: dayLabel(iso).wd }),
-        h("span", { class: "p-c", text: state.captions[iso].trim() })
-      ));
+  // The style, chosen fresh each time and remembered for next time.
+  if (on) {
+    const chips = h("div", { class: "chips print-styles", role: "radiogroup", "aria-label": "Print style" });
+    for (const s of PRINT_STYLES) {
+      chips.append(h("button", {
+        type: "button", class: `chip${s.id === style ? " on" : ""}`, role: "radio",
+        "aria-checked": String(s.id === style), text: s.label,
+        onclick: () => {
+          if (s.id === printPrefs().style) return;
+          setPrintPrefs({ style: s.id });
+          fillSend(card, onShare, false);
+          previewBox?.classList.add("drawing");    // until the new one lands
+        },
+      }));
     }
-  } else {
-    paper.append(h("div", { class: "p-row" },
-      h("span", { class: "p-c", text: "nothing written yet — swipe back and add a line or two." })));
+    card.append(chips);
   }
-  card.append(h("div", { class: "print-scroll" }, paper));
+
+  previewBox = h("div", { class: "print-scroll" });
+  paintPreview(previewBox);
+  card.append(previewBox);
 
   card.append(h("div", { class: "spacer" }));
 
@@ -153,7 +227,7 @@ function fillSend(card, onShare) {
   card.append(h("div", { class: "tally" },
     h("b", { text: String(photos) }), " photos · ",
     h("b", { text: String(videos) }), " videos · ",
-    h("b", { text: "1" }), " print · ",
+    on ? h("b", { text: "1" }) : null, on ? " print · " : "no print · ",
     h("b", { text: formatBytes(bytes) })
   ));
 
