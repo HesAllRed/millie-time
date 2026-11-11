@@ -14,6 +14,7 @@
 
 import { dayLabel, rangeLabel } from "./dates.js";
 import { messageDays } from "./compose.js";
+import { tilt } from "./ui.js";
 
 // ---------------------------------------------------------------------------
 // The styles, and her choice between them.
@@ -421,37 +422,52 @@ const LAYOUTS = {
     };
   },
 
-  // The app's own shape: the week's photos fanned out like the deck shows them.
+  // The week's photos on a gentle arc, set out the way the Sort screen sets
+  // them out when she is choosing them: every photo the same size, each with
+  // its own room, none covering another. The deck's fan lifts the middle photo
+  // in front of its neighbours; a print of the week should not favour a day.
   crescent({ laid, photos, range, name, title }) {
     const n = photos.length;
-    const tw = 196, th = 244;
-    // Neighbours sit 90px apart whatever the count, so two photos overlap the
-    // way five do, and the fan only opens as wide as it has photos for.
-    const reach = (n - 1) * 45;
-    const fan = reach / 180;
-    const fanTop = PAD + 24 + 19;
-    const cy = fanTop + 180;
-    // Clear of the lowest corner of the outermost, most tilted photo.
-    const titleY = cy + th / 2 + 128;
+    const gap = 26;
+    const tw = Math.min(n === 1 ? 260 : 200, (W - PAD * 2 - 120 - (n - 1) * gap) / n);   // room for the tilt
+    const th = tw * 1.25;                    // the Sort tile's 4:5
+    const border = 7, shadow = 10;
+    const lift = th * 0.2;                   // the deck's 22px on a 100px tile
+
+    const tiles = photos.map((p, i) => {
+      const { rot, ty } = tilt(i, n);        // the deck's arc: ±12°, outer ones lower
+      return { p, x: W / 2 + (i - (n - 1) / 2) * (tw + gap),
+               rot: (rot * Math.PI) / 180, ty: (ty / 22) * lift };
+    });
+
+    // How far the arc reaches up and down, so the canvas fits it exactly.
+    let minY = Infinity, maxY = -Infinity;
+    const hw = tw / 2 + border, hh = th / 2 + border;
+    for (const t of tiles) {
+      for (const [cx, cy] of [[-hw, -hh], [hw + shadow, -hh], [-hw, hh + shadow], [hw + shadow, hh + shadow]]) {
+        const y = t.ty + Math.sin(t.rot) * cx + Math.cos(t.rot) * cy;
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+      }
+    }
+    const axis = PAD + 24 + 19 + 48 - minY;
+    const titleY = axis + maxY + 44 + 44;
     const rowsTop = titleY + 14;
-    // Outside in, so the middle photo sits on top of the fan.
-    const order = [...photos.keys()].sort((a, b) => Math.abs(b - (n - 1) / 2) - Math.abs(a - (n - 1) / 2));
+
     return {
       height: Math.round(rowsTop + rowsHeight(laid) + PAD - 20),
       paint(ctx) {
         masthead(ctx, PAD + 24, range, name);
-        for (const i of order) {
-          const t = n === 1 ? 0 : (i / (n - 1)) * 2 - 1;
+        for (const t of tiles) {
           ctx.save();
-          ctx.translate(W / 2 + t * reach, cy + Math.abs(t) * 24 * fan);
-          ctx.rotate((t * 10 * fan * Math.PI) / 180);
-          ctx.fillStyle = "rgba(23,22,26,.26)";
-          round(ctx, -tw / 2 - 1, -th / 2 + 5, tw + 18, th + 18, 5);
-          ctx.fill();
+          ctx.translate(t.x, axis + t.ty);
+          ctx.rotate(t.rot);
+          // The Sort tile: a hard offset shadow, a mount, the photo.
+          ctx.fillStyle = "rgba(23,22,26,.42)";
+          ctx.fillRect(-hw + shadow, -hh + shadow, hw * 2, hh * 2);
           ctx.fillStyle = MOUNT;
-          round(ctx, -tw / 2 - 9, -th / 2 - 9, tw + 18, th + 18, 5);
-          ctx.fill();
-          cover(ctx, photos[i].img, -tw / 2, -th / 2, tw, th, 3);
+          ctx.fillRect(-hw, -hh, hw * 2, hh * 2);
+          cover(ctx, t.p.img, -tw / 2, -th / 2, tw, th, 0);
           ctx.restore();
         }
         ctx.font = font(UI, 44);
