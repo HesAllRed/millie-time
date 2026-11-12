@@ -11,9 +11,10 @@ import { fromJpeg, fromPng, isPng } from "../public/js/exif.js";
 const cfg = { printTitle: "This week", name: "Millie Time" };
 const week = windowDays("2026-08-21", 8);
 
-test("composeText heads the message with the title and range", () => {
+test("composeText heads the message with just the range, on a plain hyphen", () => {
   const out = composeText(week, { "2026-08-21": "nowhere to be" }, cfg);
-  assert.equal(out.split("\n")[0], "This week · AUG 14 — 21");
+  assert.equal(out.split("\n")[0], "AUG 14 - 21");
+  assert.doesNotMatch(out, /This week|—/, "no title, and no long dash anywhere");
 });
 
 test("composeText skips days with nothing written", () => {
@@ -24,8 +25,8 @@ test("composeText skips days with nothing written", () => {
   }, cfg);
   const body = out.split("\n").slice(2);
   assert.equal(body.length, 2);
-  assert.match(body[0], /^SAT {2}coffee walk$/);
-  assert.match(body[1], /^WED {2}the lake$/);
+  assert.equal(body[0], "SAT: coffee walk", "a colon after the day, then one space");
+  assert.equal(body[1], "WED: the lake");
 });
 
 test("composeText keeps days in chronological order", () => {
@@ -40,7 +41,7 @@ test("composeText carries emoji through untouched", () => {
 
 test("composeText leaves no trailing blank lines", () => {
   const out = composeText(week, {}, cfg);
-  assert.equal(out, "This week · AUG 14 — 21");
+  assert.equal(out, "AUG 14 - 21");
   assert.ok(!out.endsWith("\n"));
 });
 
@@ -195,7 +196,7 @@ test("composeText still carries a caption that fell outside the window", () => {
 
 test("composeText widens its header range to cover an orphan day", () => {
   const out = composeText(week, { "2026-08-09": "older than the window" }, cfg);
-  assert.equal(out.split("\n")[0], "This week · AUG 9 — 21");
+  assert.equal(out.split("\n")[0], "AUG 9 - 21");
 });
 
 // --- share ordering --------------------------------------------------------

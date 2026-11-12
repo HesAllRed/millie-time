@@ -46,6 +46,7 @@ test("rangeLabel collapses within a month and expands across one", () => {
   assert.equal(rangeLabel(windowDays("2026-08-21", 8)), "AUG 14 — 21");
   assert.equal(rangeLabel(windowDays("2026-09-02", 8)), "AUG 26 — SEP 2");
   assert.equal(rangeLabel([]), "");
+  assert.equal(rangeLabel(windowDays("2026-09-02", 8), "-"), "AUG 26 - SEP 2", "the message's plain hyphen");
 });
 
 test("resolveEnd follows the newest dated item", () => {
