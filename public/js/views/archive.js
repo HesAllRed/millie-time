@@ -51,10 +51,7 @@ export function renderArchive(root, { onBack }) {
   if (!weeks.length) {
     root.append(
       h("div", { class: "spacer" }),
-      h("p", { class: "warmline centred",
-        text: "Nothing here yet. A week lands here when you send it, or when you start the next one." }),
-      h("p", { class: "helper",
-        text: "Only the words — your photos stay in your camera roll." }),
+      h("p", { class: "warmline centred", text: "Collect your pages" }),
       h("div", { class: "spacer" })
     );
     return;

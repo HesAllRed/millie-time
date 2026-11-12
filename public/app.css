@@ -67,7 +67,7 @@ body{
   flex: 1 1 auto; min-height: 0;
   display: flex; flex-direction: column;
   padding:
-    calc(env(safe-area-inset-top) + 16px)
+    calc(env(safe-area-inset-top) + 19px)
     calc(env(safe-area-inset-right) + var(--pad-x))
     6px
     calc(env(safe-area-inset-left) + var(--pad-x));
@@ -544,7 +544,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 
 .menubtn{
   position: absolute; z-index: 80;
-  top: calc(env(safe-area-inset-top) + 10px);
+  top: calc(env(safe-area-inset-top) + 13px);
   right: calc(env(safe-area-inset-right) + 12px);
   width: 40px; height: 40px; padding: 0;
   background: none; border: 0;
@@ -578,10 +578,10 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 
 .menu-box{
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 58px);
+  top: calc(env(safe-area-inset-top) + 61px);
   right: calc(env(safe-area-inset-right) + 12px);
   width: min(286px, calc(100% - 24px));
-  max-height: calc(100% - env(safe-area-inset-top) - 92px);
+  max-height: calc(100% - env(safe-area-inset-top) - 95px);
   overflow-y: auto; -webkit-overflow-scrolling: touch;
   background: var(--surface); color: var(--bone);
   border: 2px solid var(--bone); border-radius: 3px;
