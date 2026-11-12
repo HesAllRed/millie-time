@@ -27,13 +27,15 @@ export function messageDays(days, captions) {
 export function composeText(days, captions, cfg) {
   const span = messageDays(days, captions);
   const lines = [];
-  lines.push(`${cfg.printTitle} · ${rangeLabel(span)}`);
+  // Just the dates, with a plain hyphen: this is text she pastes and sends as
+  // herself, so it reads like something typed rather than a title card.
+  lines.push(rangeLabel(span, "-"));
   lines.push("");
 
   for (const iso of span) {
     const text = (captions[iso] || "").trim();
     if (!text) continue;
-    lines.push(`${dayLabel(iso).wd}  ${text}`);
+    lines.push(`${dayLabel(iso).wd}: ${text}`);
   }
 
   // Trailing blank lines look sloppy pasted into Messages.
