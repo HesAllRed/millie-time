@@ -13,6 +13,8 @@ import {
   customScheme, spectrum, hslOf, CUSTOM,
 } from "./theme.js";
 import { spray } from "./confetti.js";
+import { state } from "./state.js";
+import { openArchive } from "./views/archive.js";
 
 const OUT_MS = 170;
 
@@ -42,6 +44,13 @@ function rootPanel() {
 
     h("button", {
       type: "button", class: "menu-item",
+      // A screen of its own rather than a panel in here: it is a list of weeks,
+      // and weeks are the size of a page.
+      onclick: () => { const from = state.view; closeMenu(); openArchive(from); },
+    }, h("span", { text: "archive" }), h("span", { class: "cue", text: "→" })),
+
+    h("button", {
+      type: "button", class: "menu-item",
       // No menu of its own, no screen, no setting. It throws confetti at your
       // thumb, and that is the whole feature.
       onclick: (e) => { const p = tapPoint(e); spray(p.x, p.y); },
@@ -50,34 +59,48 @@ function rootPanel() {
 }
 
 /**
- * A moving scheme's swatch, made of the colours it will actually show: eight
- * accents from around its own cycle, closed back on the first. Two moving
- * schemes therefore never look alike unless they really do move alike.
+ * The colours a moving scheme actually passes through, closed back on the
+ * first so the run has no seam. Two moving schemes never look alike unless
+ * they really do move alike.
  */
-function wheel(scheme) {
+function cycle(scheme) {
   const stops = [];
   for (let i = 0; i < 8; i++) stops.push(scheme.frame(i / 8).accent);
-  return `conic-gradient(${stops.concat(stops[0]).join(",")})`;
+  return stops.concat(stops[0]);
 }
 
+/** What a scheme paints the swatch with — one colour, or a run of them. */
+const leadOf = (scheme) => (scheme.moving
+  ? `linear-gradient(90deg, ${cycle(scheme).join(",")})`
+  : scheme.vars.accent);
+
+/**
+ * A swatch is a miniature of the screen the scheme makes: the ground, the
+ * weekday over the date the way the entry screen stacks them, and the button.
+ *
+ * It used to be three equal bands of accent, magenta and cyan — which promised
+ * a screen the app never shows. Magenta is a selected tile and a couple of
+ * destructive links; cyan is two rules, one of them on the debug screen.
+ * Neither appears on the entry screen at all, so a third of the swatch each
+ * made every scheme look like something it isn't.
+ */
 function swatch(scheme) {
   const on = scheme.id === currentScheme().id;
+  const v = scheme.vars;
+  const lead = leadOf(scheme);
+
   return h("button", {
     type: "button",
-    // A moving scheme shows the whole wheel turning rather than three bars of
-    // one frame of it, which would say nothing about what it does.
     class: `swatch${on ? " on" : ""}${scheme.moving ? " moving" : ""}${scheme.id === CUSTOM ? " mine" : ""}`,
-    style: `background:${scheme.vars.ground}`,
+    style: `background:${v.ground}`,
     title: scheme.name,
     "aria-label": scheme.moving ? `${scheme.name}, moving` : scheme.name,
     "aria-pressed": String(on),
     onclick: () => { setScheme(scheme.id); fill(); },
   },
-    scheme.moving ? h("i", { class: "wheel", style: `background:${wheel(scheme)}` }) : [
-      h("i", { style: `top:0;background:${scheme.vars.accent}` }),
-      h("i", { style: `top:33.34%;background:${scheme.vars.magenta}` }),
-      h("i", { style: `top:66.68%;background:${scheme.vars.cyan}` }),
-    ]
+    h("i", { class: "s-wd", style: `background:${lead}` }),
+    h("i", { class: "s-dm", style: `background:${v.bone}` }),
+    h("i", { class: "s-btn", style: `background:${lead};border-color:${v.bone}` })
   );
 }
 
@@ -147,10 +170,12 @@ function syncPicker(rows) {
     mine.classList.add("on");
     mine.setAttribute("aria-pressed", "true");
     mine.style.background = vars.ground;
-    const bars = mine.querySelectorAll("i");
-    [vars.accent, vars.magenta, vars.cyan].forEach((c, i) => {
-      if (bars[i]) bars[i].style.background = c;
-    });
+    const wd = mine.querySelector(".s-wd");
+    const dm = mine.querySelector(".s-dm");
+    const btn = mine.querySelector(".s-btn");
+    if (wd) wd.style.background = vars.accent;
+    if (dm) dm.style.background = vars.bone;
+    if (btn) { btn.style.background = vars.accent; btn.style.borderColor = vars.bone; }
   }
 
   const vivid = rows[1]?.querySelector(".slider");

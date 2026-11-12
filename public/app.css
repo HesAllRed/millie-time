@@ -401,6 +401,48 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .print .p-d{ font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: .1em; color: #5F52A8; padding-top: 3px; flex: 0 0 28px; }
 .print .p-c{ font-family: var(--hand); font-size: 12.5px; line-height: 1.35; }
 
+/* The Send card's controls: whether a print goes, and which one. The chips
+   scroll sideways rather than wrapping, so six of them cost one line of the
+   card and the preview keeps its room. */
+.print-head{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.switch{
+  position: relative; flex: 0 0 auto; width: 48px; height: 28px; padding: 0;
+  border: 2px solid var(--edge); border-radius: 999px; background: var(--ground);
+  transition: background-color .16s, border-color .16s;
+}
+.switch-knob{
+  position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--bone-dim); transition: transform .16s, background-color .16s;
+}
+.switch.on{ background: var(--magenta); border-color: var(--magenta); }
+.switch.on .switch-knob{ transform: translateX(20px); background: var(--ink); }
+.print-styles{
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+  margin: 10px calc(var(--pad-x) * -1) 0; padding: 0 var(--pad-x) 2px;
+}
+.print-styles::-webkit-scrollbar{ display: none; }
+.print-styles .chip{ flex: 0 0 auto; font-size: 12px; padding: 7px 10px; }
+.print-img{
+  display: block; width: 100%; height: auto; border: 3px solid var(--bone); border-radius: 2px;
+  box-shadow: 7px 7px 0 rgba(0,0,0,.5); transition: opacity .16s;
+}
+.print-scroll.drawing .print-img{ opacity: .5; }
+.print-off{
+  margin: 18px 4px 0; font-family: var(--hand); font-size: 17px; line-height: 1.45;
+  color: var(--bone-dim); text-align: center;
+}
+
+/* --- the archive ---------------------------------------------------------
+   The same paper the print is on, stacked. These are the week's words kept, so
+   they are shown on the thing the week's words go out on.
+   -------------------------------------------------------------------------- */
+.arc-week{ margin: 16px 0 22px; }
+.arc-week .print{ box-shadow: 5px 5px 0 rgba(0,0,0,.5); }
+.arc-week .p-h{ color: #5F52A8; }
+.arc-week .sheet-x{ margin-top: 8px; font-size: 9.5px; opacity: .75; }
+#app[data-view="archive"] .scroll{ margin-top: 2px; }
+#app[data-view="archive"] .btn{ margin-top: 6px; }
+
 .tally{ display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--bone-dim); margin-top: 12px; }
 .tally b{ color: var(--bone); font-weight: 500; }
 .stray{
@@ -466,6 +508,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
   .orb.pulse{ animation: none; opacity: .9; }
   .orb span{ animation: none; }
   .cres, .cres-wrap, .dots .dot{ transition: none; }
+  .switch, .switch-knob, .print-img{ transition: none; }
   ::view-transition-old(root), ::view-transition-new(root){ animation: none; }
   :root.nav-fwd::view-transition-old(root), :root.nav-fwd::view-transition-new(root),
   :root.nav-back::view-transition-old(root), :root.nav-back::view-transition-new(root){ animation: none; }
@@ -586,18 +629,23 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 .swatch.on{ border-color: var(--bone); box-shadow: 3px 3px 0 var(--accent); }
 .swatch:active{ transform: translate(1px,1px); }
 
-/* Three bars of the scheme it is offering, over that scheme's own ground —
-   painted from theme.js's values, never from the variables in play. */
-.swatch i{ position: absolute; left: 0; right: 0; height: 33.34%; display: block; }
+/* A miniature of the screen the scheme makes, painted from theme.js's values
+   and never from the variables in play: the weekday over the date, the way the
+   entry screen stacks them, and the button. What the eye is being asked about
+   is the accent against the ground — see swatch() in menu.js. */
+.swatch i{ position: absolute; display: block; border-radius: 1px; }
+.s-wd { left: 7px; top: 11px; width: 19px; height: 4px; }
+.s-dm { left: 7px; top: 19px; width: 27px; height: 4px; opacity: .85; }
+.s-btn{ left: 6px; right: 6px; bottom: 6px; height: 11px; border: 1.5px solid; border-radius: 1px; }
 
-/* A moving scheme gets the wheel it turns rather than three bars of one frame,
-   which would look like a scheme that doesn't move. */
-.swatch .wheel{
-  position: absolute; inset: -30%; height: auto; border-radius: 50%;
-  /* The gradient itself is set inline, from the scheme's own frames. */
-  animation: wheel-turn 5.5s linear infinite;
+/* A moving scheme paints those in the run of colours it passes through and
+   walks the run, so it reads as the one that changes without pretending the
+   whole screen is a rainbow at any one moment. */
+.swatch.moving .s-wd, .swatch.moving .s-btn{
+  background-size: 200% 100%;
+  animation: swatch-turn 6s linear infinite;
 }
-@keyframes wheel-turn{ to{ transform: rotate(1turn); } }
+@keyframes swatch-turn{ to{ background-position: 200% 0; } }
 
 /* --- her own colour ------------------------------------------------------
    Two sliders whose tracks are the thing they choose from: the hue one is the
@@ -650,7 +698,7 @@ button{ font: inherit; color: inherit; cursor: pointer; }
   .slider:active::-webkit-slider-thumb{ transform: none; }
   /* Still, but still every colour at once — it has to stay legible as the
      choice that moves, since theme.js holds it on one frame here too. */
-  .swatch .wheel{ animation: none; }
+  .swatch.moving .s-wd, .swatch.moving .s-btn{ animation: none; }
 }
 
 /* --- utilities -----------------------------------------------------------

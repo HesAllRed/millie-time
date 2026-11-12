@@ -108,13 +108,13 @@ export function dayLabel(iso) {
 }
 
 /** "AUG 14 — 21" when inside one month, "AUG 28 — SEP 4" across a boundary. */
-export function rangeLabel(days) {
+export function rangeLabel(days, dash = "—") {
   if (!days.length) return "";
   const a = dayLabel(days[0]);
   const b = dayLabel(days[days.length - 1]);
   return a.month === b.month
-    ? `${a.month} ${a.day} — ${b.day}`
-    : `${a.month} ${a.day} — ${b.month} ${b.day}`;
+    ? `${a.month} ${a.day} ${dash} ${b.day}`
+    : `${a.month} ${a.day} ${dash} ${b.month} ${b.day}`;
 }
 
 /**

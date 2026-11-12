@@ -102,5 +102,5 @@ export default {
   videosLast: true,
 
   // Bumped on release; shown in the footer and on #debug.
-  version: "1.1.15",
+  version: "1.2",
 };
