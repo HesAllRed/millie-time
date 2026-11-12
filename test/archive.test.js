@@ -24,12 +24,13 @@ function installLocalStorage() {
   return store;
 }
 
-let A, S, store;
+let A, S, V, store;
 
 before(async () => {
   store = installLocalStorage();
   A = await import("../public/js/archive.js");
   S = await import("../public/js/state.js");
+  V = await import("../public/js/views/archive.js");
 });
 
 beforeEach(() => {
@@ -37,6 +38,8 @@ beforeEach(() => {
   S.state.items = [];
   S.state.captions = {};
   S.state.autoWindow = true;
+  S.state.view = "intake";
+  S.state.cameFrom = null;
 });
 
 const week = (startIso, endIso, captions) => ({ startIso, endIso, captions });
@@ -165,4 +168,22 @@ test("a blank week left behind does not clutter the archive", () => {
   S.clearAll();
   assert.deepEqual(A.archivedWeeks(), []);
   assert.equal(stored().length, 0);
+});
+
+// The menu offers Archive on every screen, the archive's own included.
+test("opening the archive remembers where she came from", () => {
+  S.state.view = "deck";
+  V.openArchive("deck");
+  assert.equal(S.state.view, "archive");
+  assert.equal(S.state.cameFrom, "deck");
+});
+
+test("opening the archive from the archive keeps Back pointing at the way out", () => {
+  S.state.view = "deck";
+  V.openArchive("deck");
+
+  V.openArchive(S.state.view);          // what the menu does: from = the current screen
+
+  assert.equal(S.state.view, "archive");
+  assert.equal(S.state.cameFrom, "deck", "not \"archive\", which would make Back go nowhere");
 });
