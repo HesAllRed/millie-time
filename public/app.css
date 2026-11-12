@@ -40,6 +40,9 @@
   --vvh: 100dvh;
   --cres-scale: 1;
   --pad-x: 22px;
+  /* How much bigger the row along the top of every screen is drawn than the
+     body's small type. One knob for the words, the back link and the menu. */
+  --top-scale: 1.75;
 }
 
 *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -166,9 +169,20 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 
 /* Back link on the left, where-am-I on the right — and then a gutter, because
    the menu button is parked in that corner on every screen. */
-.topbar{ display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 42px; }
+.topbar{ display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-right: 50px; margin-bottom: 12px; }
 .topbar .brandline{ color: var(--bone-mute); }
-.topbar .linkish{ color: var(--accent); }
+.topbar .linkish{ color: var(--accent); flex: 0 0 auto; }
+
+/* The row along the top of every screen, drawn large. Only ever grows
+   downward from where it already starts — the top edge stays put, so nothing
+   creeps up under the status bar. The tracking comes in a little as the type
+   grows, or the longest pair ("← MILLIE TIME" / "STEP 2 OF 3 · SORT") would
+   not fit beside each other on a narrow phone. */
+#app > .brandline:first-child, .topbar .brandline{
+  font-size: calc(10.5px * var(--top-scale)); letter-spacing: .16em; line-height: 1.25;
+}
+#app[data-view="intake"] > .brandline:first-child{ font-size: calc(12px * var(--top-scale)); }
+.topbar > .brandline:last-child{ text-align: right; }
 
 .range{
   font-family: var(--ui); font-weight: 800; font-size: 46px; line-height: .92;
@@ -281,14 +295,16 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 
 /* Back to the photos sits on the bar with the day dots, so she can add more
    without losing what she has written. */
-.deckbar{ display: flex; align-items: center; gap: 10px; flex: 0 0 auto; padding: 4px 0 2px; }
-.deckbar .dots{ flex: 1 1 auto; }
+/* Top-aligned, like every other screen's top row: the back link starts on the
+   same line and grows down from it, and the dots sit level with its letters. */
+.deckbar{ display: flex; align-items: flex-start; gap: 10px; flex: 0 0 auto; padding: 0 0 2px; }
+.deckbar .dots{ flex: 1 1 auto; padding-top: 9px; }
 .backlink{
-  flex: 0 0 auto; background: none; border: 0; padding: 6px 2px;
-  font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--accent);
+  flex: 0 0 auto; background: none; border: 0; padding: 0 2px 6px;
+  font-family: var(--mono); font-size: calc(11px * var(--top-scale)); letter-spacing: .12em;
+  line-height: 1.25; text-transform: uppercase; color: var(--accent);
 }
-.deckbar-pad{ flex: 0 0 auto; width: 62px; }
+.deckbar-pad{ flex: 0 0 auto; width: 50px; }
 
 .dots{ display: flex; gap: 7px; justify-content: center; padding: 10px 0 2px; flex: 0 0 auto; }
 /* Jump targets. The ::after is an invisible hit area — a 7px dot is far below
@@ -544,18 +560,24 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 
 .menubtn{
   position: absolute; z-index: 80;
-  top: calc(env(safe-area-inset-top) + 13px);
-  right: calc(env(safe-area-inset-right) + 12px);
-  width: 40px; height: 40px; padding: 0;
+  /* The bars' top-right corner sits where it always has — 26px down, 21px in —
+     and they grow out of it, down and to the left. The button around them is
+     just the thumb's target, so it is as big as the bars now need. */
+  top: calc(env(safe-area-inset-top) + 8px);
+  right: calc(env(safe-area-inset-right) + 6px);
+  width: 64px; height: 64px; padding: 18px 15px 0 0;
   background: none; border: 0;
-  display: grid; place-items: center;
+  display: grid; place-items: start end;
   transition: opacity .2s ease;
 }
 /* Out of the way while she is writing — a floating button beside the keyboard
    is a mis-tap waiting to happen. Never while it is the way out of the menu. */
 .kb-open:not(.menu-open) .menubtn{ opacity: 0; pointer-events: none; }
 
-.menubtn .bars{ display: block; position: relative; width: 22px; height: 14px; }
+.menubtn .bars{
+  display: block; position: relative; width: 22px; height: 14px;
+  transform: scale(var(--top-scale)); transform-origin: top right;
+}
 .menubtn .bars i{
   position: absolute; left: 0; right: 0; height: 2.5px; border-radius: 2px;
   /* The same accent as CONTINUE, as MILLIE TIME, as the weekday. */
@@ -578,10 +600,11 @@ button{ font: inherit; color: inherit; cursor: pointer; }
 
 .menu-box{
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 61px);
+  /* Under the bars, which now reach 26 + 14 × 1.75 ≈ 51px down. */
+  top: calc(env(safe-area-inset-top) + 72px);
   right: calc(env(safe-area-inset-right) + 12px);
   width: min(286px, calc(100% - 24px));
-  max-height: calc(100% - env(safe-area-inset-top) - 95px);
+  max-height: calc(100% - env(safe-area-inset-top) - 106px);
   overflow-y: auto; -webkit-overflow-scrolling: touch;
   background: var(--surface); color: var(--bone);
   border: 2px solid var(--bone); border-radius: 3px;

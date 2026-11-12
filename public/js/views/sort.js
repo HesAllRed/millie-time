@@ -4,7 +4,6 @@
 // lets the deck stay calm. When capture dates come through cleanly the Unsorted
 // tray is empty and she scrolls straight past it.
 
-import cfg from "../config.js";
 import { h, clear, tile } from "../ui.js";
 import { state, set, days } from "../state.js";
 import { dayLabel } from "../dates.js";
@@ -33,10 +32,13 @@ export function renderSort(root, { onDone, onAddMore }) {
 
   // Back to the entry screen. Captions and picked items are held in the store,
   // so stepping back here loses nothing — it just isn't a one-way wizard.
+  //
+  // Short on both sides because the top row is drawn large: "← Millie Time"
+  // beside "Step 2 of 3 · Sort" needs ~360px at that size, and no phone has it.
   root.append(h("div", { class: "topbar" },
-    h("button", { type: "button", class: "brandline linkish", text: `← ${cfg.name}`,
+    h("button", { type: "button", class: "brandline linkish", text: "← Back",
       onclick: () => set({ view: "intake" }) }),
-    h("p", { class: "brandline", text: "Step 2 of 3 · Sort" })
+    h("p", { class: "brandline", text: "Step 2 of 3" })
   ));
 
   const scroller = h("div", { class: "scroll" });
