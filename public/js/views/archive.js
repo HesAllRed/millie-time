@@ -5,7 +5,7 @@
 // were; this is the part that only ever existed here.
 
 import { h, clear } from "../ui.js";
-import { set } from "../state.js";
+import { state, set } from "../state.js";
 import { dayLabel, rangeLabel, rangeBetween } from "../dates.js";
 import { archivedWeeks, forgetWeek, archiveText } from "../archive.js";
 import { copyText } from "../share.js";
@@ -74,7 +74,14 @@ export function renderArchive(root, { onBack }) {
   root.append(copy);
 }
 
-/** Open it, remembering where she was so Back means back. */
+/**
+ * Open it, remembering where she was so Back means back.
+ *
+ * Already being here is not somewhere to come from: the menu offers Archive on
+ * every screen, this one included, and treating that as a journey recorded
+ * "archive" as the place Back returns to — which is where she already was.
+ */
 export function openArchive(from) {
+  if (state.view === "archive") return;
   set({ view: "archive", cameFrom: from });
 }
